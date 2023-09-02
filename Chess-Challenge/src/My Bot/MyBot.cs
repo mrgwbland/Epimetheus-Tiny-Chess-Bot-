@@ -6,8 +6,6 @@ using System.Linq;
 public class MyBot : IChessBot
 {
     Dictionary<ulong, float> HashWithScores = new Dictionary<ulong, float>();
-    int nCount;
-    int qCount;
     private float Evaluate(Board board)
     {
         if (board.IsInCheckmate()) return float.NegativeInfinity;
@@ -76,7 +74,6 @@ public class MyBot : IChessBot
     }
     private float Negamax(Board board, int depth, float alpha, float beta)
     {
-        nCount++;
         if (depth == 0)
         {
             float finalEval = quiescenceSearch(board, alpha, beta);
@@ -107,31 +104,24 @@ public class MyBot : IChessBot
     }
     private float quiescenceSearch(Board board,float alpha, float beta)
     {
-        qCount++;
         //Evaluation without captures
         float stand_pat = Evaluate(board);
         if (stand_pat >= beta) return beta;
         if (stand_pat > alpha) alpha = stand_pat;
-        Move[] legalMoves = board.GetLegalMoves();
-        foreach (Move move in legalMoves)
+        Move[] captureMoves = board.GetLegalMoves(true);
+        foreach (Move move in captureMoves)
         {
             board.MakeMove(move);
-            if (move.IsCapture||board.IsInCheck())
-            {
-                float eval = -quiescenceSearch(board, -beta, -alpha);
-                board.UndoMove(move);
-                if (eval >= beta) return eval;
-                if (eval < alpha) alpha = eval;
-            }
-            else    board.UndoMove(move);
+            float eval = -quiescenceSearch(board, -beta, -alpha);
+            board.UndoMove(move);
+            if (eval >= beta) return eval;
+            if (eval < alpha) alpha = eval;
         }
         return alpha;
     }
     public Move Think(Board board, Timer timer)
     {
         HashWithScores.Clear(); // Clear the dictionary before starting a new search
-        nCount = 0;
-        qCount = 0;
         int depth = 2;
         List<MoveWithScore> movesWithScores = new List<MoveWithScore>();
         Move[] legalMoves = board.GetLegalMoves();
@@ -139,6 +129,7 @@ public class MyBot : IChessBot
         if (SquareCounter(board.AllPiecesBitboard) < 10) depth += 2;
         if (board.IsInCheck()) depth += 1;
         if (legalMoves.Length == 1) depth += 1;
+        if (timer.MillisecondsRemaining < 1000) depth = 1;
         foreach (Move move in legalMoves)
         {
             board.MakeMove(move);
@@ -156,7 +147,6 @@ public class MyBot : IChessBot
         {
             Console.WriteLine("  "+moveWithScore.Move.MovePieceType+" " + moveWithScore.Move.StartSquare.Name + " to " + moveWithScore.Move.TargetSquare.Name+" "+ moveWithScore.Score);
         }
-        Console.WriteLine("nCount = " + nCount + " qCount = " + qCount);
         return movesWithScores[0].Move;
     }
     public struct MoveWithScore
