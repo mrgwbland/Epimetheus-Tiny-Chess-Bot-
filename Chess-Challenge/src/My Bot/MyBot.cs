@@ -108,14 +108,18 @@ public class MyBot : IChessBot
         float stand_pat = Evaluate(board);
         if (stand_pat >= beta) return beta;
         if (stand_pat > alpha) alpha = stand_pat;
-        Move[] captureMoves = board.GetLegalMoves(true);
-        foreach (Move move in captureMoves)
+        Move[] legalMoves = board.GetLegalMoves();
+        foreach (Move move in legalMoves)
         {
             board.MakeMove(move);
-            float eval = -quiescenceSearch(board, -beta, -alpha);
-            board.UndoMove(move);
-            if (eval >= beta) return eval;
-            if (eval < alpha) alpha = eval;
+            if (move.IsCapture || board.IsInCheck())
+            {
+                float eval = -quiescenceSearch(board, -beta, -alpha);
+                board.UndoMove(move);
+                if (eval >= beta) return eval;
+                if (eval < alpha) alpha = eval;
+            }
+            else board.UndoMove(move);
         }
         return alpha;
     }
