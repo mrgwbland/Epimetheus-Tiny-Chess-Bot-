@@ -16,22 +16,21 @@ public class MyBot : IChessBot
         PieceList[] pieceLists = board.GetAllPieceLists();
         int piececount = SquareCounter(board.AllPiecesBitboard);
         //Endgame is true if there are less than 9 pieces left
+        endgame = (piececount < 10) ? 1 : endgame;
         foreach (PieceList list in pieceLists)
         {
             foreach (Piece piece in list)
             {
-                float score = PieceEvaluator(board, piece, endgame);
                 if (piece.IsWhite)
                 {
-                    whiteScore += score;
+                    whiteScore += PieceEvaluator(board, piece, endgame);
                 }
                 else
                 {
-                    blackScore += score;
+                    blackScore += PieceEvaluator(board, piece, endgame);
                 }
             }
         }
-        endgame = (piececount < 10) ? 1 : endgame;
         if (board.IsWhiteToMove) return (whiteScore - blackScore);
         return blackScore-whiteScore;
     }
@@ -146,11 +145,6 @@ public class MyBot : IChessBot
             movesWithScores.Add(new MoveWithScore { Move = move, Score = score });
         }
         movesWithScores = movesWithScores.OrderByDescending(ms => ms.Score).ToList();
-        Console.WriteLine("Moves:");
-        foreach (MoveWithScore moveWithScore in movesWithScores)
-        {
-            Console.WriteLine("  "+moveWithScore.Move.MovePieceType+" " + moveWithScore.Move.StartSquare.Name + " to " + moveWithScore.Move.TargetSquare.Name+" "+ moveWithScore.Score);
-        }
         return movesWithScores[0].Move;
     }
     public struct MoveWithScore
