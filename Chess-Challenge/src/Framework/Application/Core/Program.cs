@@ -2,6 +2,9 @@
 using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System;
+using ChessChallenge.API;
+using ChessChallenge.UCI;
 
 namespace ChessChallenge.Application
 {
@@ -10,8 +13,13 @@ namespace ChessChallenge.Application
         const bool hideRaylibLogs = true;
         static Camera2D cam;
 
-        public static void Main()
+        public static void Main(string[] args)
         {
+            if (args.Length > 1 && args[0] == "uci")
+            {
+                StartUCI(args);
+                return;
+            }
             Vector2 loadedWindowSize = GetSavedWindowSize();
             int screenWidth = (int)loadedWindowSize.X;
             int screenHeight = (int)loadedWindowSize.Y;
@@ -51,6 +59,28 @@ namespace ChessChallenge.Application
 
             controller.Release();
             UIHelper.Release();
+        }
+
+        public static void StartUCI(string[] args)
+        {
+            ChallengeController.PlayerType player;
+            bool success = Enum.TryParse(args[1], out player);
+
+            if (!success)
+            {
+                Console.Error.WriteLine($"Failed to start bot with player type {args[1]}");
+                return;
+            }
+
+            IChessBot? bot = ChallengeController.CreateBot(player);
+            if (bot == null)
+            {
+                Console.Error.WriteLine($"Cannot create bot of type {player.ToString()}");
+                return;
+            }
+
+            UCIBot uci = new UCIBot(bot, player);
+            uci.Run();
         }
 
         public static void SetWindowSize(Vector2 size)

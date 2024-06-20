@@ -76,6 +76,17 @@ namespace ChessChallenge.Application
             StartNewGame(PlayerType.Human, PlayerType.MyBot);
         }
 
+        public static ChessChallenge.API.IChessBot? CreateBot(PlayerType type)
+        {
+            return type switch
+            {
+                PlayerType.MyBot => new MyBot(),
+                PlayerType.EvilBot => new EvilBot(),
+                // If you have other bot types, you can add them here as well
+                _ => null
+            };
+        }
+
         public void StartNewGame(PlayerType whiteType, PlayerType blackType)
         {
             // End any ongoing game
