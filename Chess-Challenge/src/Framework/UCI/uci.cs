@@ -34,7 +34,7 @@ namespace ChessChallenge.UCI
                 }
                 else
                 {
-                    board.LoadPosition(String.Join(" ", args.AsSpan(2, args.Length - 2).ToArray()));
+                    board.LoadPosition(String.Join(" ", args.AsSpan(1, args.Length - 1).ToArray()));
                 }
             }
             else
@@ -45,7 +45,7 @@ namespace ChessChallenge.UCI
                 }
                 else
                 {
-                    board.LoadPosition(String.Join(" ", args.AsSpan(2, idx - 2).ToArray()));
+                    board.LoadPosition(String.Join(" ", args.AsSpan(1, idx - 1).ToArray()));
                 }
 
                 for (int i = idx + 1; i < args.Length; i++)
@@ -57,7 +57,7 @@ namespace ChessChallenge.UCI
             }
 
             string fen = FenUtility.CurrentFen(board);
-            Console.WriteLine(fen);
+            //Console.WriteLine(fen);
         }
 
         void GoCommand(string[] args)
@@ -75,6 +75,11 @@ namespace ChessChallenge.UCI
                 else if (args[i] == "btime")
                 {
                     btime = Int32.Parse(args[i + 1]);
+                }
+                else if (args[i] == "movetime")
+                {
+                    btime = Int32.Parse(args[i + 1]);
+                    wtime = btime;
                 }
             }
             if (!apiBoard.IsWhiteToMove)
@@ -100,7 +105,7 @@ namespace ChessChallenge.UCI
             {
                 case "uci":
                     Console.WriteLine("id name Chess Challenge");
-                    Console.WriteLine("id author George Bland, AspectOfTheNoob, Sebastian Lague");
+                    Console.WriteLine("id author AspectOfTheNoob, Sebastian Lague");
                     Console.WriteLine("uciok");
                     break;
                 case "ucinewgame":

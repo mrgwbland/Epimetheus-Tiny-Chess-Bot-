@@ -13,13 +13,25 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
 		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Test|Any CPU = Test|Any CPU
+		Test|x64 = Test|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Debug|x64.ActiveCfg = Debug|x64
+		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Debug|x64.Build.0 = Debug|x64
 		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Release|x64.ActiveCfg = Release|x64
+		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Release|x64.Build.0 = Release|x64
+		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Test|Any CPU.ActiveCfg = Test|x64
+		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Test|Any CPU.Build.0 = Test|x64
+		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Test|x64.ActiveCfg = Test|x64
+		{2803E64F-15AC-430B-A5A2-69C00EA7505F}.Test|x64.Build.0 = Test|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
