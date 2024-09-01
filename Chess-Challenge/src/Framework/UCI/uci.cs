@@ -90,7 +90,8 @@ namespace ChessChallenge.UCI
             }
             Timer timer = new Timer(wtime, btime, 0);
             API.Move move = bot.Think(apiBoard, timer);
-            Console.WriteLine($"bestmove {move.ToString().Substring(7, move.ToString().Length - 8)}");
+            Console.WriteLine($"bestmove {move.ToString()}");
+            //Console.WriteLine($"bestmove {move.ToString().Substring(7, move.ToString().Length - 8)}");
         }
 
         void ExecCommand(string line)

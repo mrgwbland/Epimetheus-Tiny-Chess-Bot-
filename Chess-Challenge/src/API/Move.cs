@@ -56,8 +56,9 @@ namespace ChessChallenge.API
 		public override string ToString()
 		{
 			string moveName = MoveUtility.GetMoveNameUCI(move);
-			return $"Move: '{moveName}'";
-		}
+            //return $"Move: '{moveName}'";
+            return $"{moveName}";
+        }
 
 		/// <summary>
 		/// Tests if two moves are the same.
