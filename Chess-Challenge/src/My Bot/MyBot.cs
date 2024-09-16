@@ -75,43 +75,49 @@ public class MyBot : IChessBot
         return count;
     }
 
-    private float Negamax(Board board, int depth, float alpha, float beta)
+    private (float, Move) Negamax(Board board, int depth, float alpha, float beta)
     {
         if (board.IsInCheckmate())
         {
-            return float.PositiveInfinity;
+            return (float.PositiveInfinity, Move.NullMove);  // Return a null move in checkmate
         }
         if (board.IsDraw())
         {
-            return 0;
+            return (0, Move.NullMove);  // Return null in a drawn position
         }
         if (depth == 0)
         {
             float finalEval = quiescenceSearch(board, alpha, beta);
-            return finalEval;
+            return (finalEval, Move.NullMove);  // Return evaluation with no specific move
         }
-        if (alpha >= beta)
-        {
-            return alpha;
-        }
-        float bestEval = float.NegativeInfinity;
+
         Move[] legalMoves = board.GetLegalMoves();
+        Move bestMove = Move.NullMove;  // Track the best move
+        float bestEval = float.NegativeInfinity;
+
         foreach (Move move in legalMoves)
         {
             board.MakeMove(move);
-            float eval = -Negamax(board, depth - 1, -beta, -alpha);
+            (float eval, _) = Negamax(board, depth - 1, -beta, -alpha);  // Recursive call to negamax
+            eval = -eval;
             board.UndoMove(move);
 
-            bestEval = Math.Max(bestEval, eval);
-            alpha = Math.Max(alpha, eval);
+            if (eval > bestEval)
+            {
+                bestEval = eval;
+                bestMove = move;
+            }
 
+            alpha = Math.Max(alpha, eval);
             if (alpha >= beta)
             {
-                break;
+                break;  // Beta cutoff
             }
         }
-        return bestEval;
+
+        return (bestEval, bestMove);
     }
+
 
     private float quiescenceSearch(Board board, float alpha, float beta)
     {
@@ -140,38 +146,20 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        int depth = 2;
-        List<MoveWithScore> movesWithScores = new List<MoveWithScore>();
-        Move[] legalMoves = board.GetLegalMoves();
-        // Increases search depth if the following parameters are met.
+        int depth = 3;
+        // Dynamically increase depth based on remaining pieces or timer
         if (SquareCounter(board.AllPiecesBitboard) < 14) depth += 1;
         if (SquareCounter(board.AllPiecesBitboard) < 8) depth += 2;
         if (SquareCounter(board.AllPiecesBitboard) < 5) depth += 2;
         if (board.IsInCheck()) depth += 1;
-        if (legalMoves.Length == 1)
-        {
-            return legalMoves[0];
-        }
+
         if (timer.MillisecondsRemaining < 5000) depth -= 2;
         if (timer.MillisecondsRemaining < 1000) depth = 0;
-        foreach (Move move in legalMoves)
-        {
-            if (timer.MillisecondsRemaining < 500)
-            {
-                movesWithScores = movesWithScores.OrderByDescending(ms => ms.Score).ToList();
-                return movesWithScores[0].Move;
-            }
-            board.MakeMove(move);
-            if (board.IsInCheckmate())
-            {
-                return move;
-            }
-            float score = -Negamax(board, depth, float.NegativeInfinity, float.PositiveInfinity);
-            board.UndoMove(move);
-            movesWithScores.Add(new MoveWithScore { Move = move, Score = score });
-        }
-        movesWithScores = movesWithScores.OrderByDescending(ms => ms.Score).ToList();
-        return movesWithScores[0].Move;
+
+        // Run Negamax from the starting position, allowing it to return the best move and score
+        (float bestScore, Move bestMove) = Negamax(board, depth, float.NegativeInfinity, float.PositiveInfinity);
+
+        return bestMove;  // Return the best move found
     }
 
     public struct MoveWithScore
