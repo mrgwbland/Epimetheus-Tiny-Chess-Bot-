@@ -13,12 +13,10 @@ public class MyBot : IChessBot
         if (board.IsDraw()) return 0;
         float whiteScore = 0;
         float blackScore = 0;
-        int endgame = -1;
         PieceList[] pieceLists = board.GetAllPieceLists();
         int piececount = SquareCounter(board.AllPiecesBitboard);
         // Endgame is true if there are less than x pieces left
-        // when true endgame = 1
-        endgame = (piececount < 16) ? 1 : endgame;
+        int endgame = (piececount < 16) ? 1 : -1;
         foreach (PieceList list in pieceLists)
         {
             foreach (Piece piece in list)
@@ -79,7 +77,7 @@ public class MyBot : IChessBot
     {
         if (board.IsInCheckmate())
         {
-            return (float.PositiveInfinity, Move.NullMove);  // Return a null move in checkmate
+            return (float.NegativeInfinity, Move.NullMove);  // Return a null move in checkmate
         }
         if (board.IsDraw())
         {
