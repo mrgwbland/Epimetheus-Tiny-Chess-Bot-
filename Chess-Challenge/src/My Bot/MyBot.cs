@@ -144,6 +144,18 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
+        Move[] legalMoves = board.GetLegalMoves();
+        if (legalMoves.Length == 1)
+        {
+            return legalMoves[0];
+        }
+        foreach (Move move in legalMoves)
+        {
+            board.MakeMove(move);
+            if (board.IsInCheckmate())
+                return move;
+            board.UndoMove(move);
+        }
         int depth = 3;
         // Dynamically increase depth based on remaining pieces or timer
         if (SquareCounter(board.AllPiecesBitboard) < 14) depth += 1;
