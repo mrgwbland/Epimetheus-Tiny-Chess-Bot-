@@ -4,7 +4,6 @@ using System;
 using System.Numerics;
 using System.Linq;
 using System.IO;
-
 public class MyBot : IChessBot
 {
     private float Evaluate(Board board)
@@ -33,7 +32,6 @@ public class MyBot : IChessBot
         }
         return board.IsWhiteToMove ? (whiteScore - blackScore) : (blackScore - whiteScore);
     }
-
     private float PieceEvaluator(Board board, Piece piece, int endgame)
     {
         if (piece.IsPawn)
@@ -60,7 +58,6 @@ public class MyBot : IChessBot
         // If nothing prior then king
         return endgame * SquareCounter(BitboardHelper.GetKingAttacks(piece.Square));
     }
-
     private int SquareCounter(ulong bitboard)
     {
         // Brian Kernighan's algorithm
@@ -72,12 +69,12 @@ public class MyBot : IChessBot
         }
         return count;
     }
-
     private (float, Move) Negamax(Board board, int depth, float alpha, float beta)
     {
         if (board.IsInCheckmate())
         {
-            return (float.NegativeInfinity, Move.NullMove);  // Return a null move in checkmate
+            return (depth == 0) ? (float.NegativeInfinity, Move.NullMove) : (float.NegativeInfinity + (depth * 100), Move.NullMove);
+            // The closer the mate, the higher the score; subtracting by depth ensures that mate-in-1 is prioritized over mate-in-5
         }
         if (board.IsDraw())
         {
@@ -88,35 +85,28 @@ public class MyBot : IChessBot
             float finalEval = quiescenceSearch(board, alpha, beta);
             return (finalEval, Move.NullMove);  // Return evaluation with no specific move
         }
-
         Move[] legalMoves = board.GetLegalMoves();
         Move bestMove = Move.NullMove;  // Track the best move
         float bestEval = float.NegativeInfinity;
-
         foreach (Move move in legalMoves)
         {
             board.MakeMove(move);
             (float eval, _) = Negamax(board, depth - 1, -beta, -alpha);  // Recursive call to negamax
             eval = -eval;
             board.UndoMove(move);
-
             if (eval > bestEval)
             {
                 bestEval = eval;
                 bestMove = move;
             }
-
             alpha = Math.Max(alpha, eval);
             if (alpha >= beta)
             {
                 break;  // Beta cutoff
             }
         }
-
         return (bestEval, bestMove);
     }
-
-
     private float quiescenceSearch(Board board, float alpha, float beta)
     {
         // Evaluation without captures
@@ -141,7 +131,6 @@ public class MyBot : IChessBot
         }
         return alpha;
     }
-
     public Move Think(Board board, Timer timer)
     {
         Move[] legalMoves = board.GetLegalMoves();
@@ -170,11 +159,5 @@ public class MyBot : IChessBot
         (float bestScore, Move bestMove) = Negamax(board, depth, float.NegativeInfinity, float.PositiveInfinity);
 
         return bestMove;  // Return the best move found
-    }
-
-    public struct MoveWithScore
-    {
-        public Move Move { get; set; }
-        public float Score { get; set; }
     }
 }
