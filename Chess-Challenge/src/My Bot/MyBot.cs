@@ -35,8 +35,20 @@ public class MyBot : IChessBot
         int pieceCount = SquareCounter(board.AllPiecesBitboard);
 
         // Endgame is true if there are less than x pieces left
+        // Count non-pawn pieces
+        int nonPawnPieceCount = 0;
+        for (int i = 0; i < pieceLists.Length; i++)
+        {
+            // Skip pawn lists (indices 0 and 6 are white and black pawns)
+            if (i != 0 && i != 6)
+            {
+                nonPawnPieceCount += pieceLists[i].Count;
+            }
+        }
+
+        // Endgame is true if there are fewer than 6 non-pawn pieces left
         int endgame;
-        if (pieceCount < 16)
+        if (nonPawnPieceCount < 6)
         {
             endgame = 1;
         }
@@ -72,21 +84,64 @@ public class MyBot : IChessBot
 
     private float PieceEvaluator(Board board, Piece piece, int endgame)
     {
-        float pieceValue = GetPieceValue(piece);
+        int file = piece.Square.File;
+        int rank = piece.Square.Rank;
+        float pieceValue = GetMaterialValue(piece);
         if (piece.IsPawn)
         {
             if (endgame == 1)
             {
-                int rank;
-                if (board.IsWhiteToMove)
+                int pawnrank = board.IsWhiteToMove ? piece.Square.Rank : 7 - piece.Square.Rank;
+                pieceValue += 2 * pawnrank;
+            }
+
+            // Fast pawn structure evaluation
+            // 1. Count pawns per file
+            // 2. Check for doubled and isolated pawns
+            ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, piece.IsWhite);
+
+            // Count pawns per file
+            int[] pawnsPerFile = new int[8];
+            for (int sq = 0; sq < 64; sq++)
+            {
+                if (((pawnsBB >> sq) & 1) != 0)
                 {
-                    rank = piece.Square.Rank;
+                    pawnsPerFile[sq % 8]++;
                 }
-                else
+            }
+
+            int thisFileCount = pawnsPerFile[file];
+            // Doubled pawn penalty: -1 for each extra pawn on the file
+            if (thisFileCount > 1)
+                pieceValue -= (thisFileCount - 1);
+
+            // Isolated pawn penalty: -10 if no pawns on adjacent files
+            bool hasLeft = file > 0 && pawnsPerFile[file - 1] > 0;
+            bool hasRight = file < 7 && pawnsPerFile[file + 1] > 0;
+            if (!hasLeft && !hasRight)
+                pieceValue -= 10;
+
+            // Passed pawn bonus
+            // Check if there are no enemy pawns in the same file or adjacent files ahead of this pawn
+            bool isWhite = piece.IsWhite;
+            ulong enemyPawnsBB = board.GetPieceBitboard(PieceType.Pawn, !isWhite);
+            bool isPassed = true;
+            for (int adjFile = Math.Max(0, file - 1); adjFile <= Math.Min(7, file + 1); adjFile++)
+            {
+                for (int r = (isWhite ? rank + 1 : 0); isWhite ? r < 8 : r < rank; r++)
                 {
-                    rank = 7 - piece.Square.Rank;
+                    int sqIdx = adjFile + r * 8;
+                    if (((enemyPawnsBB >> sqIdx) & 1) != 0)
+                    {
+                        isPassed = false;
+                        break;
+                    }
                 }
-                pieceValue += 2 * rank;
+                if (!isPassed) break;
+            }
+            if (isPassed)
+            {
+                pieceValue += 20; // Passed pawn bonus
             }
 
             return pieceValue;
@@ -113,8 +168,28 @@ public class MyBot : IChessBot
         }
 
         // If nothing prior, then the piece must be a king
-        return endgame * SquareCounter(BitboardHelper.GetKingAttacks(piece.Square));
+        if (endgame==-1)//Prioritises king safety in opening and middlegames
+        {
+            // Calculate Manhattan distance to the nearest corner.
+            int kingFile = piece.Square.File;
+            int kingRank = piece.Square.Rank;
+            int distanceA1 = kingFile + kingRank;
+            int distanceH1 = (7 - kingFile) + kingRank;
+            int distanceA8 = kingFile + (7 - kingRank);
+            int distanceH8 = (7 - kingFile) + (7 - kingRank);
+            int minDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
+
+            // Penalty: the further the king is from a corner, the higher the penalty.
+            // Here each square away from safety deducts points.
+            float safetyPenalty = minDistance * 3;
+            return -safetyPenalty;
+        }
+        // If not endgame then favour mobility instead of safety
+        float mobility = SquareCounter(BitboardHelper.GetKingAttacks(piece.Square));
+
+        return mobility;
     }
+
 
     private int SquareCounter(ulong bitboard)
     {
@@ -141,7 +216,7 @@ public class MyBot : IChessBot
             Piece movingPiece = board.GetPiece(move.StartSquare);
 
             // Value of captured piece minus value of moving piece (divided by 100)
-            int captureValue = GetPieceValue(capturedPiece) - GetPieceValue(movingPiece) / 100;
+            int captureValue = GetMaterialValue(capturedPiece) - GetMaterialValue(movingPiece) / 100;
             score += 10000 + captureValue;
         }
 
@@ -168,7 +243,7 @@ public class MyBot : IChessBot
         return score;
     }
 
-    private int GetPieceValue(Piece piece)
+    private int GetMaterialValue(Piece piece)
     {
         if (piece.IsPawn) return PieceValues[1];
         if (piece.IsKnight) return PieceValues[2];
@@ -308,22 +383,7 @@ public class MyBot : IChessBot
 
         if (SquareCounter(board.AllPiecesBitboard) < 14)
         {
-            depth += 1;
-        }
-
-        if (SquareCounter(board.AllPiecesBitboard) < 8)
-        {
-            depth += 3;
-        }
-
-        if (SquareCounter(board.AllPiecesBitboard) < 5)
-        {
-            depth += 5;
-        }
-
-        if (board.IsInCheck())
-        {
-            depth += 1;
+            depth += -(int)((SquareCounter(board.AllPiecesBitboard) / 10) * (SquareCounter(board.AllPiecesBitboard) / 10)) + 3;
         }
 
         if (timer.MillisecondsRemaining > 60000)

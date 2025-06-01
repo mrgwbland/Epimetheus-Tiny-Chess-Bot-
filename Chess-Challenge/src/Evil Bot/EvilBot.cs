@@ -8,7 +8,16 @@ namespace ChessChallenge.Example
 {
     public class EvilBot : IChessBot
     {
-
+        // Piece value constants for move ordering
+        private static readonly int[] PieceValues = {
+        0,      // None
+        100,    // Pawn
+        310,    // Knight
+        320,    // Bishop
+        500,    // Rook
+        900,    // Queen
+        int.MaxValue   // King
+    };
         private float Evaluate(Board board)
         {
             if (board.IsInCheckmate())
@@ -107,7 +116,6 @@ namespace ChessChallenge.Example
             // If nothing prior, then the piece must be a king
             return endgame * SquareCounter(BitboardHelper.GetKingAttacks(piece.Square));
         }
-
         private int SquareCounter(ulong bitboard)
         {
             int count = 0;
@@ -119,6 +127,55 @@ namespace ChessChallenge.Example
             }
 
             return count;
+        }
+        // Estimate move score for ordering
+        private int EstimateMoveScore(Board board, Move move)
+        {
+            int score = 0;
+
+            // Captures - MVV/LVA (Most Valuable Victim / Least Valuable Aggressor)
+            if (move.IsCapture)
+            {
+                Piece capturedPiece = board.GetPiece(move.TargetSquare);
+                Piece movingPiece = board.GetPiece(move.StartSquare);
+
+                // Value of captured piece minus value of moving piece (divided by 100)
+                int captureValue = GetMaterialValue(capturedPiece) - GetMaterialValue(movingPiece) / 100;
+                score += 10000 + captureValue;
+            }
+
+            // Promotions
+            if (move.IsPromotion)
+            {
+                score += 9000 + (int)move.PromotionPieceType * 100;
+            }
+
+            // Castling
+            if (move.IsCastles)
+            {
+                score += 1000;
+            }
+
+            // Check if move gives check (approximation)
+            board.MakeMove(move);
+            if (board.IsInCheck())
+            {
+                score += 500;
+            }
+            board.UndoMove(move);
+
+            return score;
+        }
+
+        private int GetMaterialValue(Piece piece)
+        {
+            if (piece.IsPawn) return PieceValues[1];
+            if (piece.IsKnight) return PieceValues[2];
+            if (piece.IsBishop) return PieceValues[3];
+            if (piece.IsRook) return PieceValues[4];
+            if (piece.IsQueen) return PieceValues[5];
+            if (piece.IsKing) return PieceValues[6];
+            return 0;
         }
 
         private (float, Move) Negamax(Board board, int depth, float alpha, float beta)
@@ -143,7 +200,17 @@ namespace ChessChallenge.Example
             Move bestMove = Move.NullMove;
             float bestEval = float.NegativeInfinity;
 
+            // Order moves
+            List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
             foreach (Move move in legalMoves)
+            {
+                int moveScore = EstimateMoveScore(board, move);
+                scoredMoves.Add((move, moveScore));
+            }
+            scoredMoves.Sort((a, b) => b.score.CompareTo(a.score)); // Sort in descending order
+
+            // Process ordered moves
+            foreach (var (move, _) in scoredMoves)
             {
                 board.MakeMove(move);
                 (float eval, _) = Negamax(board, depth - 1, -beta, -alpha);
@@ -181,30 +248,34 @@ namespace ChessChallenge.Example
                 alpha = standPat;
             }
 
+            // Get captures and order them
             Move[] legalMoves = board.GetLegalMoves();
+            List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
 
             foreach (Move move in legalMoves)
             {
-                board.MakeMove(move);
-
                 if (move.IsCapture || board.IsInCheck())
                 {
-                    float eval = -QuiescenceSearch(board, -beta, -alpha);
-                    board.UndoMove(move);
-
-                    if (eval >= beta)
-                    {
-                        return beta;
-                    }
-
-                    if (eval > alpha)
-                    {
-                        alpha = eval;
-                    }
+                    int moveScore = EstimateMoveScore(board, move);
+                    scoredMoves.Add((move, moveScore));
                 }
-                else
+            }
+            scoredMoves.Sort((a, b) => b.score.CompareTo(a.score)); // Sort in descending order
+
+            foreach (var (move, _) in scoredMoves)
+            {
+                board.MakeMove(move);
+                float eval = -QuiescenceSearch(board, -beta, -alpha);
+                board.UndoMove(move);
+
+                if (eval >= beta)
                 {
-                    board.UndoMove(move);
+                    return beta;
+                }
+
+                if (eval > alpha)
+                {
+                    alpha = eval;
                 }
             }
 
@@ -232,7 +303,7 @@ namespace ChessChallenge.Example
                 board.UndoMove(move);
             }
 
-            int depth = 3;
+            int depth = 4;
 
             if (SquareCounter(board.AllPiecesBitboard) < 14)
             {
@@ -241,15 +312,20 @@ namespace ChessChallenge.Example
 
             if (SquareCounter(board.AllPiecesBitboard) < 8)
             {
-                depth += 3;
+                depth += 2;
             }
 
             if (SquareCounter(board.AllPiecesBitboard) < 5)
             {
-                depth += 5;
+                depth += 2;
             }
 
             if (board.IsInCheck())
+            {
+                depth += 1;
+            }
+
+            if (timer.MillisecondsRemaining > 60000)
             {
                 depth += 1;
             }
