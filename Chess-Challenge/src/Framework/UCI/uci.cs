@@ -64,8 +64,6 @@ namespace ChessChallenge.UCI
         {
             int wtime = 0, btime = 0;
             API.Board apiBoard = new API.Board(board);
-            Console.WriteLine(FenUtility.CurrentFen(board));
-            Console.WriteLine(apiBoard.GetFenString());
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "wtime")
@@ -90,8 +88,15 @@ namespace ChessChallenge.UCI
             }
             Timer timer = new Timer(wtime, btime, 0);
             API.Move move = bot.Think(apiBoard, timer);
+
+            // Output info score cp <score> if available
+            if (bot is MyBot myBot)
+            {
+                // UCI expects centipawns, so ensure the value is in centipawns
+                float score = myBot.LastEvaluation/100;
+                Console.WriteLine($"info score cp {score}");
+            }
             Console.WriteLine($"bestmove {move.ToString()}");
-            //Console.WriteLine($"bestmove {move.ToString().Substring(7, move.ToString().Length - 8)}");
         }
 
         void ExecCommand(string line)
@@ -106,7 +111,7 @@ namespace ChessChallenge.UCI
             {
                 case "uci":
                     Console.WriteLine("id name Chess Challenge");
-                    Console.WriteLine("id author AspectOfTheNoob, Sebastian Lague");
+                    Console.WriteLine("id author George Bland, AspectOfTheNoob, Sebastian Lague");
                     Console.WriteLine("uciok");
                     break;
                 case "ucinewgame":
@@ -123,7 +128,6 @@ namespace ChessChallenge.UCI
                     break;
             }
         }
-
         public void Run()
         {
             while (true)

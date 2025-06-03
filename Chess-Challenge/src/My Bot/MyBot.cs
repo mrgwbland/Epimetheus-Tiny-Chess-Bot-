@@ -6,6 +6,7 @@ using System.Linq;
 using System.IO;
 public class MyBot : IChessBot
 {
+    public float LastEvaluation { get; private set; }
     // Piece value constants for move ordering
     private static readonly int[] PieceValues = {
         0,      // None
@@ -330,7 +331,7 @@ public class MyBot : IChessBot
 
         foreach (Move move in legalMoves)
         {
-            if (move.IsCapture || board.IsInCheck())
+            if (move.IsCapture || board.IsInCheck() || move.IsPromotion)
             {
                 int moveScore = EstimateMoveScore(board, move);
                 scoredMoves.Add((move, moveScore));
@@ -402,6 +403,8 @@ public class MyBot : IChessBot
         }
 
         (float bestScore, Move bestMove) = Negamax(board, depth, float.NegativeInfinity, float.PositiveInfinity);
+
+        LastEvaluation = bestScore;
 
         return bestMove;
     }
