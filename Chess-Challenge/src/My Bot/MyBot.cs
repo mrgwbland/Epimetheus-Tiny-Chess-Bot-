@@ -57,18 +57,20 @@ public class MyBot : IChessBot
         {
             endgame = -1;
         }
-
+        // Precompute passed pawns
+        HashSet<int> whitePassedPawns = GetPassedPawnSquares(board, true);
+        HashSet<int> blackPassedPawns = GetPassedPawnSquares(board, false);
         foreach (PieceList list in pieceLists)
         {
             foreach (Piece piece in list)
             {
                 if (piece.IsWhite)
                 {
-                    whiteScore += PieceEvaluator(board, piece, endgame);
+                    whiteScore += PieceEvaluator(board, piece, endgame, whitePassedPawns);
                 }
                 else
                 {
-                    blackScore += PieceEvaluator(board, piece, endgame);
+                    blackScore += PieceEvaluator(board, piece, endgame, blackPassedPawns);
                 }
             }
         }
@@ -83,22 +85,19 @@ public class MyBot : IChessBot
         }
     }
 
-    private float PieceEvaluator(Board board, Piece piece, int endgame)
+    private float PieceEvaluator(Board board, Piece piece, int endgame, HashSet<int> passedPawns)
     {
         int file = piece.Square.File;
         int rank = piece.Square.Rank;
+        bool isWhite = piece.IsWhite;
         float pieceValue = GetMaterialValue(piece);
         if (piece.IsPawn)
         {
-            if (endgame == 1)
+            int pawnrank = isWhite ? piece.Square.Rank : 7 - piece.Square.Rank;
+            if (endgame == 1)//Reward advanced pawns in the endgame
             {
-                int pawnrank = board.IsWhiteToMove ? piece.Square.Rank : 7 - piece.Square.Rank;
                 pieceValue += 2 * pawnrank;
             }
-
-            // Fast pawn structure evaluation
-            // 1. Count pawns per file
-            // 2. Check for doubled and isolated pawns
             ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, piece.IsWhite);
 
             // Count pawns per file
@@ -112,7 +111,7 @@ public class MyBot : IChessBot
             }
 
             int thisFileCount = pawnsPerFile[file];
-            // Doubled pawn penalty: -1 for each extra pawn on the file
+            // Doubled pawn penalty: -1 for each same colour pawn on the file
             if (thisFileCount > 1)
                 pieceValue -= (thisFileCount - 1);
 
@@ -123,26 +122,9 @@ public class MyBot : IChessBot
                 pieceValue -= 10;
 
             // Passed pawn bonus
-            // Check if there are no enemy pawns in the same file or adjacent files ahead of this pawn
-            bool isWhite = piece.IsWhite;
-            ulong enemyPawnsBB = board.GetPieceBitboard(PieceType.Pawn, !isWhite);
-            bool isPassed = true;
-            for (int adjFile = Math.Max(0, file - 1); adjFile <= Math.Min(7, file + 1); adjFile++)
+            if (passedPawns.Contains(piece.Square.Index))
             {
-                for (int r = (isWhite ? rank + 1 : 0); isWhite ? r < 8 : r < rank; r++)
-                {
-                    int sqIdx = adjFile + r * 8;
-                    if (((enemyPawnsBB >> sqIdx) & 1) != 0)
-                    {
-                        isPassed = false;
-                        break;
-                    }
-                }
-                if (!isPassed) break;
-            }
-            if (isPassed)
-            {
-                pieceValue += 20; // Passed pawn bonus
+                pieceValue += 4 * pawnrank;
             }
 
             return pieceValue;
@@ -150,45 +132,94 @@ public class MyBot : IChessBot
 
         if (piece.IsKnight)
         {
-            return pieceValue + SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square));
+            return pieceValue + 2f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square));
         }
-
+        //GetSliderAttacks() takes blocked squares into account, so it is not necessary to check for blockers here.
         if (piece.IsBishop)
         {
-            return pieceValue + SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Bishop, piece.Square, board));
+            return pieceValue + 2f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Bishop, piece.Square, board));
         }
 
         if (piece.IsRook)
         {
-            return pieceValue + 0.5f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
+            return pieceValue + 1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
         }
 
         if (piece.IsQueen)
         {
-            return pieceValue + 0.1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Queen, piece.Square, board));
+            return pieceValue + 0.5f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Queen, piece.Square, board));
         }
 
         // If nothing prior, then the piece must be a king
-        if (endgame==-1)//Prioritises king safety in opening and middlegames
-        {
-            // Calculate Manhattan distance to the nearest corner.
-            int kingFile = piece.Square.File;
-            int kingRank = piece.Square.Rank;
-            int distanceA1 = kingFile + kingRank;
-            int distanceH1 = (7 - kingFile) + kingRank;
-            int distanceA8 = kingFile + (7 - kingRank);
-            int distanceH8 = (7 - kingFile) + (7 - kingRank);
-            int minDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
-
-            // Penalty: the further the king is from a corner, the higher the penalty.
-            // Here each square away from safety deducts points.
-            float safetyPenalty = minDistance * 3;
-            return -safetyPenalty;
-        }
+        //Prioritises king safety in opening and middlegames
         // If not endgame then favour mobility instead of safety
-        float mobility = SquareCounter(BitboardHelper.GetKingAttacks(piece.Square));
+        // Calculate Manhattan distance to the nearest corner.
+        int kingFile = piece.Square.File;
+        int kingRank = piece.Square.Rank;
+        int distanceA1 = kingFile + kingRank;
+        int distanceH1 = (7 - kingFile) + kingRank;
+        int distanceA8 = kingFile + (7 - kingRank);
+        int distanceH8 = (7 - kingFile) + (7 - kingRank);
+        int minDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
 
-        return mobility;
+        // Penalty: the further the king is from a corner, the higher the penalty.
+        // Here each square away from safety deducts points.
+        float cornerDistance = minDistance * 3;
+        return endgame * cornerDistance;
+    }
+    private HashSet<int> GetPassedPawnSquares(Board board, bool isWhite)
+    {
+        ulong ownPawns = board.GetPieceBitboard(PieceType.Pawn, isWhite);
+        ulong enemyPawns = board.GetPieceBitboard(PieceType.Pawn, !isWhite);
+
+        HashSet<int> passedSquares = new HashSet<int>();
+
+        for (int sq = 0; sq < 64; sq++)
+        {
+            if (((ownPawns >> sq) & 1) == 0)
+                continue;
+
+            int file = sq % 8;
+            int rank = sq / 8;
+            bool isPassed = true;
+
+            for (int f = Math.Max(0, file - 1); f <= Math.Min(7, file + 1); f++)
+            {
+                if (isWhite)
+                {
+                    for (int r = rank + 1; r < 8; r++)
+                    {
+                        int idx = r * 8 + f;
+                        if (((enemyPawns >> idx) & 1) != 0)
+                        {
+                            isPassed = false;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    for (int r = rank - 1; r >= 0; r--)
+                    {
+                        int idx = r * 8 + f;
+                        if (((enemyPawns >> idx) & 1) != 0)
+                        {
+                            isPassed = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (!isPassed) break;
+            }
+
+            if (isPassed)
+            {
+                passedSquares.Add(sq);
+            }
+        }
+
+        return passedSquares;
     }
 
 
@@ -368,6 +399,23 @@ public class MyBot : IChessBot
             return legalMoves[0];
         }
 
+        // Play a random opening move on move 1 as White
+        if (board.IsWhiteToMove && board.GetFenString().StartsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))
+        {
+            string[] openingMoves = new string[]
+                {
+                "g1f3", // Nf3
+                //"e2e4", // e4
+                //"g2g3", // g3
+                //"d2d4", // d4
+                //"c2c4", // c4
+                //"e2e3", // e3
+                //"c2c3", // c3
+                };
+            Random random = new Random();
+            return new Move(openingMoves[random.Next(openingMoves.Length)],board);
+        }
+
         foreach (Move move in legalMoves)
         {
             board.MakeMove(move);
@@ -382,22 +430,22 @@ public class MyBot : IChessBot
 
         int depth = 4;
 
-        if (SquareCounter(board.AllPiecesBitboard) < 14)
+        if (SquareCounter(board.AllPiecesBitboard) < 14)//Adjust depth when less pieces (less moves so deeper search takes the same time)
         {
             depth += -(int)((SquareCounter(board.AllPiecesBitboard) / 10) * (SquareCounter(board.AllPiecesBitboard) / 10)) + 3;
         }
 
-        if (timer.MillisecondsRemaining > 60000)
+        if (timer.MillisecondsRemaining > 60000)//Think longer when time is over 1 minute
         {
             depth += 1;
         }
 
-        if (timer.MillisecondsRemaining < 5000)
+        if (timer.MillisecondsRemaining < 5000)//Think less when under 5 seconds
         {
             depth -= 2;
         }
 
-        if (timer.MillisecondsRemaining < 1000)
+        if (timer.MillisecondsRemaining < 1000)//Play instantly when under 1 second
         {
             depth = 1;
         }

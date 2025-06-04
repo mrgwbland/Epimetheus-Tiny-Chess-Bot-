@@ -213,7 +213,7 @@ namespace ChessChallenge.API
         /// </summary>
         public bool IsDraw()
 		{
-			if (GameMoveHistory.Length > 299) return true;
+			if (GameMoveHistory.Length > 299) return true; //Lichess draw rule
 			return IsFiftyMoveDraw() || IsInsufficientMaterial() || IsInStalemate() || IsRepeatedPosition();
 		}
 
