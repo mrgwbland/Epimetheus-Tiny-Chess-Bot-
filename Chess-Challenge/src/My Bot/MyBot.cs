@@ -6,6 +6,7 @@ using System.Linq;
 using System.IO;
 public class MyBot : IChessBot
 {
+    //The public values are accessed by the uci interface to display various information
     public int LastDepth { get; private set; }
     public float LastEvaluation { get; private set; }
     public string LastPV { get; private set; }
@@ -172,7 +173,7 @@ public class MyBot : IChessBot
             else
             {
                 //Rooks better in the endgame
-                pieceValue += 100;
+                pieceValue += 50;
             }
             return pieceValue;
         }
@@ -186,18 +187,13 @@ public class MyBot : IChessBot
         //Prioritises king safety in opening and middlegames
         // If not endgame then favour mobility instead of safety
         // Calculate Manhattan distance to the nearest corner.
-        int kingFile = piece.Square.File;
-        int kingRank = piece.Square.Rank;
-        int distanceA1 = kingFile + kingRank;
-        int distanceH1 = (7 - kingFile) + kingRank;
-        int distanceA8 = kingFile + (7 - kingRank);
-        int distanceH8 = (7 - kingFile) + (7 - kingRank);
-        int minDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
-
-        // Penalty: the further the king is from a corner, the higher the penalty.
-        // Here each square away from safety deducts points.
-        float cornerDistance = minDistance * 3;
-        return endgame * cornerDistance;
+        int distanceA1 = file + rank;
+        int distanceH1 = (7 - file) + rank;
+        int distanceA8 = file + (7 - rank);
+        int distanceH8 = (7 - file) + (7 - rank);
+        int cornerDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
+        //In the endgame we reverse evaluation- the further the king is from a corner, the better.
+        return endgame * cornerDistance * 3;
     }
     private HashSet<int> GetPassedPawnSquares(Board board, bool isWhite)
     {
