@@ -92,9 +92,11 @@ namespace ChessChallenge.UCI
             // Output info score cp <score> if available
             if (bot is MyBot myBot)
             {
-                // UCI expects centipawns, so ensure the value is in centipawns
-                float score = myBot.LastEvaluation/100;
-                Console.WriteLine($"info score cp {score}");
+                Console.Write("info ");
+                Console.Write("depth " + myBot.LastDepth + " ");
+                Console.Write("score cp " + (int)myBot.LastEvaluation + " ");
+                Console.Write("pv " + myBot.LastPV + " ");
+                Console.Write("\n");
             }
             Console.WriteLine($"bestmove {move.ToString()}");
         }

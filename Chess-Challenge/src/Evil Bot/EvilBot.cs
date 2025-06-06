@@ -11,14 +11,14 @@ namespace ChessChallenge.Example
         public float LastEvaluation { get; private set; }
         // Piece value constants for move ordering
         private static readonly int[] PieceValues = {
-            0,      // None
-            100,    // Pawn
-            310,    // Knight
-            320,    // Bishop
-            500,    // Rook
-            900,    // Queen
-            int.MaxValue   // King
-        };
+        0,      // None
+        100,    // Pawn
+        310,    // Knight
+        320,    // Bishop
+        500,    // Rook
+        900,    // Queen
+        int.MaxValue   // King
+    };
 
         private float Evaluate(Board board) //Evaluates a single position without depth
         {
@@ -59,18 +59,20 @@ namespace ChessChallenge.Example
             {
                 endgame = -1;
             }
-
+            // Precompute passed pawns
+            HashSet<int> whitePassedPawns = GetPassedPawnSquares(board, true);
+            HashSet<int> blackPassedPawns = GetPassedPawnSquares(board, false);
             foreach (PieceList list in pieceLists)
             {
                 foreach (Piece piece in list)
                 {
                     if (piece.IsWhite)
                     {
-                        whiteScore += PieceEvaluator(board, piece, endgame);
+                        whiteScore += PieceEvaluator(board, piece, endgame, whitePassedPawns);
                     }
                     else
                     {
-                        blackScore += PieceEvaluator(board, piece, endgame);
+                        blackScore += PieceEvaluator(board, piece, endgame, blackPassedPawns);
                     }
                 }
             }
@@ -85,7 +87,7 @@ namespace ChessChallenge.Example
             }
         }
 
-        private float PieceEvaluator(Board board, Piece piece, int endgame)
+        private float PieceEvaluator(Board board, Piece piece, int endgame, HashSet<int> passedPawns)
         {
             int file = piece.Square.File;
             int rank = piece.Square.Rank;
@@ -93,12 +95,12 @@ namespace ChessChallenge.Example
             float pieceValue = GetMaterialValue(piece);
             if (piece.IsPawn)
             {
+                int pawnrank = isWhite ? piece.Square.Rank : 7 - piece.Square.Rank;
                 if (endgame == 1)//Reward advanced pawns in the endgame
                 {
-                    int pawnrank = isWhite ? piece.Square.Rank : 7 - piece.Square.Rank;
                     pieceValue += 2 * pawnrank;
                 }
-                ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, isWhite);
+                ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, piece.IsWhite);
 
                 // Count pawns per file
                 int[] pawnsPerFile = new int[8];
@@ -122,25 +124,9 @@ namespace ChessChallenge.Example
                     pieceValue -= 10;
 
                 // Passed pawn bonus
-                // Check if there are no enemy pawns in the same file or adjacent files ahead of this pawn
-                ulong enemyPawnsBB = board.GetPieceBitboard(PieceType.Pawn, !isWhite);
-                bool isPassed = true;
-                for (int adjFile = Math.Max(0, file - 1); adjFile <= Math.Min(7, file + 1); adjFile++)
+                if (passedPawns.Contains(piece.Square.Index))
                 {
-                    for (int r = (isWhite ? rank + 1 : 0); isWhite ? r < 8 : r < rank; r++)
-                    {
-                        int sqIdx = adjFile + r * 8;
-                        if (((enemyPawnsBB >> sqIdx) & 1) != 0)
-                        {
-                            isPassed = false;
-                            break;
-                        }
-                    }
-                    if (!isPassed) break;
-                }
-                if (isPassed)
-                {
-                    pieceValue += 10; // Passed pawn bonus
+                    pieceValue += 4 * pawnrank;
                 }
 
                 return pieceValue;
@@ -148,22 +134,22 @@ namespace ChessChallenge.Example
 
             if (piece.IsKnight)
             {
-                return pieceValue + SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square));
+                return pieceValue + 2f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square));
             }
-
+            //GetSliderAttacks() takes blocked squares into account, so it is not necessary to check for blockers here.
             if (piece.IsBishop)
             {
-                return pieceValue + SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Bishop, piece.Square, board));
+                return pieceValue + 2f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Bishop, piece.Square, board));
             }
 
             if (piece.IsRook)
             {
-                return pieceValue + 0.5f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
+                return pieceValue + 1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
             }
 
             if (piece.IsQueen)
             {
-                return pieceValue + 0.1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Queen, piece.Square, board));
+                return pieceValue + 0.5f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Queen, piece.Square, board));
             }
 
             // If nothing prior, then the piece must be a king
@@ -182,6 +168,60 @@ namespace ChessChallenge.Example
             // Here each square away from safety deducts points.
             float cornerDistance = minDistance * 3;
             return endgame * cornerDistance;
+        }
+        private HashSet<int> GetPassedPawnSquares(Board board, bool isWhite)
+        {
+            ulong ownPawns = board.GetPieceBitboard(PieceType.Pawn, isWhite);
+            ulong enemyPawns = board.GetPieceBitboard(PieceType.Pawn, !isWhite);
+
+            HashSet<int> passedSquares = new HashSet<int>();
+
+            for (int sq = 0; sq < 64; sq++)
+            {
+                if (((ownPawns >> sq) & 1) == 0)
+                    continue;
+
+                int file = sq % 8;
+                int rank = sq / 8;
+                bool isPassed = true;
+
+                for (int f = Math.Max(0, file - 1); f <= Math.Min(7, file + 1); f++)
+                {
+                    if (isWhite)
+                    {
+                        for (int r = rank + 1; r < 8; r++)
+                        {
+                            int idx = r * 8 + f;
+                            if (((enemyPawns >> idx) & 1) != 0)
+                            {
+                                isPassed = false;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        for (int r = rank - 1; r >= 0; r--)
+                        {
+                            int idx = r * 8 + f;
+                            if (((enemyPawns >> idx) & 1) != 0)
+                            {
+                                isPassed = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!isPassed) break;
+                }
+
+                if (isPassed)
+                {
+                    passedSquares.Add(sq);
+                }
+            }
+
+            return passedSquares;
         }
 
 
@@ -366,7 +406,7 @@ namespace ChessChallenge.Example
             {
                 string[] openingMoves = new string[]
                     {
-                        "g1f3", // Nf3
+                "g1f3", // Nf3
                         //"e2e4", // e4
                         //"g2g3", // g3
                         //"d2d4", // d4

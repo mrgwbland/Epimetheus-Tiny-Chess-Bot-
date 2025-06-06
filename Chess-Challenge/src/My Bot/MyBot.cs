@@ -6,7 +6,9 @@ using System.Linq;
 using System.IO;
 public class MyBot : IChessBot
 {
+    public int LastDepth { get; private set; }
     public float LastEvaluation { get; private set; }
+    public string LastPV { get; private set; }
     // Piece value constants for move ordering
     private static readonly int[] PieceValues = {
         0,      // None
@@ -22,7 +24,7 @@ public class MyBot : IChessBot
     {
         if (board.IsInCheckmate())
         {
-            return float.NegativeInfinity;
+            return -99999;
         }
 
         if (board.IsDraw())
@@ -286,27 +288,28 @@ public class MyBot : IChessBot
         return 0;
     }
 
-    private (float, Move) Negamax(Board board, int depth, float alpha, float beta)
+    private (float, Move, List<Move>) NegamaxPV(Board board, int depth, float alpha, float beta)
     {
         if (board.IsInCheckmate())
         {
-            return (float.NegativeInfinity + (depth * 100), Move.NullMove);
+            return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
         }
 
         if (board.IsDraw())
         {
-            return (0, Move.NullMove);
+            return (0, Move.NullMove, new List<Move>());
         }
 
         if (depth == 0)
         {
             float finalEval = QuiescenceSearch(board, alpha, beta);
-            return (finalEval, Move.NullMove);
+            return (finalEval, Move.NullMove, new List<Move>());
         }
 
         Move[] legalMoves = board.GetLegalMoves();
         Move bestMove = Move.NullMove;
-        float bestEval = float.NegativeInfinity;
+        float bestEval = -99999;
+        List<Move> bestPV = new();
 
         // Order moves
         List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
@@ -317,11 +320,10 @@ public class MyBot : IChessBot
         }
         scoredMoves.Sort((a, b) => b.score.CompareTo(a.score)); // Sort in descending order
 
-        // Process ordered moves
         foreach (var (move, _) in scoredMoves)
         {
             board.MakeMove(move);
-            (float eval, _) = Negamax(board, depth - 1, -beta, -alpha);
+            (float eval, _, List<Move> pv) = NegamaxPV(board, depth - 1, -beta, -alpha);
             eval = -eval;
             board.UndoMove(move);
 
@@ -329,6 +331,8 @@ public class MyBot : IChessBot
             {
                 bestEval = eval;
                 bestMove = move;
+                bestPV = new List<Move> { move };
+                bestPV.AddRange(pv);
             }
 
             alpha = Math.Max(alpha, eval);
@@ -339,7 +343,7 @@ public class MyBot : IChessBot
             }
         }
 
-        return (bestEval, bestMove);
+        return (bestEval, bestMove, bestPV);
     }
 
     private float QuiescenceSearch(Board board, float alpha, float beta)
@@ -450,9 +454,11 @@ public class MyBot : IChessBot
             depth = 1;
         }
 
-        (float bestScore, Move bestMove) = Negamax(board, depth, float.NegativeInfinity, float.PositiveInfinity);
+        (float bestScore, Move bestMove, List<Move> pv) = NegamaxPV(board, depth, -99999, 99999);
 
+        LastDepth = depth;
         LastEvaluation = bestScore;
+        LastPV = string.Join(" ", pv.Select(m => m.ToString()));
 
         return bestMove;
     }
