@@ -8,7 +8,9 @@ namespace ChessChallenge.Example
 {
     public class EvilBot : IChessBot
     {
+    public int LastDepth { get; private set; }
         public float LastEvaluation { get; private set; }
+        public string LastPV { get; private set; }
         // Piece value constants for move ordering
         private static readonly int[] PieceValues = {
         0,      // None
@@ -19,12 +21,21 @@ namespace ChessChallenge.Example
         900,    // Queen
         int.MaxValue   // King
     };
-
+        private static readonly ulong[] FileMasks = {
+    0x0101010101010101, // File A
+    0x0202020202020202, // File B
+    0x0404040404040404, // File C
+    0x0808080808080808, // File D
+    0x1010101010101010, // File E
+    0x2020202020202020, // File F
+    0x4040404040404040, // File G
+    0x8080808080808080  // File H
+    };
         private float Evaluate(Board board) //Evaluates a single position without depth
         {
             if (board.IsInCheckmate())
             {
-                return float.NegativeInfinity;
+                return -99999;
             }
 
             if (board.IsDraw())
@@ -144,7 +155,28 @@ namespace ChessChallenge.Example
 
             if (piece.IsRook)
             {
-                return pieceValue + 1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
+                if (endgame == -1)//Non-endgame evaluation for rooks
+                {
+                    // Reward for squares controlled
+                    pieceValue += 1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
+
+                    // Combine all pawns (both colors)
+                    ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, true) |
+                                    board.GetPieceBitboard(PieceType.Pawn, false);
+
+                    // Get file mask for rook's current file
+                    ulong fileMask = FileMasks[piece.Square.File];
+
+                    // Bonus for no pawns on the file
+                    if (SquareCounter(pawnsBB & fileMask) == 0)
+                        pieceValue += 20f;
+                }
+                else
+                {
+                    //Rooks better in the endgame
+                    pieceValue += 100;
+                }
+                return pieceValue;
             }
 
             if (piece.IsQueen)
@@ -288,27 +320,28 @@ namespace ChessChallenge.Example
             return 0;
         }
 
-        private (float, Move) Negamax(Board board, int depth, float alpha, float beta)
+        private (float, Move, List<Move>) Negamax(Board board, int depth, float alpha, float beta)
         {
             if (board.IsInCheckmate())
             {
-                return (float.NegativeInfinity + (depth * 100), Move.NullMove);
+                return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
             }
 
             if (board.IsDraw())
             {
-                return (0, Move.NullMove);
+                return (0, Move.NullMove, new List<Move>());
             }
 
             if (depth == 0)
             {
                 float finalEval = QuiescenceSearch(board, alpha, beta);
-                return (finalEval, Move.NullMove);
+                return (finalEval, Move.NullMove, new List<Move>());
             }
 
             Move[] legalMoves = board.GetLegalMoves();
             Move bestMove = Move.NullMove;
-            float bestEval = float.NegativeInfinity;
+            float bestEval = -99999;
+            List<Move> bestPV = new();
 
             // Order moves
             List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
@@ -319,11 +352,10 @@ namespace ChessChallenge.Example
             }
             scoredMoves.Sort((a, b) => b.score.CompareTo(a.score)); // Sort in descending order
 
-            // Process ordered moves
             foreach (var (move, _) in scoredMoves)
             {
                 board.MakeMove(move);
-                (float eval, _) = Negamax(board, depth - 1, -beta, -alpha);
+                (float eval, _, List<Move> pv) = Negamax(board, depth - 1, -beta, -alpha);
                 eval = -eval;
                 board.UndoMove(move);
 
@@ -331,6 +363,8 @@ namespace ChessChallenge.Example
                 {
                     bestEval = eval;
                     bestMove = move;
+                    bestPV = new List<Move> { move };
+                    bestPV.AddRange(pv);
                 }
 
                 alpha = Math.Max(alpha, eval);
@@ -341,7 +375,7 @@ namespace ChessChallenge.Example
                 }
             }
 
-            return (bestEval, bestMove);
+            return (bestEval, bestMove, bestPV);
         }
 
         private float QuiescenceSearch(Board board, float alpha, float beta)
@@ -452,9 +486,11 @@ namespace ChessChallenge.Example
                 depth = 1;
             }
 
-            (float bestScore, Move bestMove) = Negamax(board, depth, float.NegativeInfinity, float.PositiveInfinity);
+            (float bestScore, Move bestMove, List<Move> pv) = Negamax(board, depth, -99999, 99999);
 
+            LastDepth = depth;
             LastEvaluation = bestScore;
+            LastPV = string.Join(" ", pv.Select(m => m.ToString()));
 
             return bestMove;
         }

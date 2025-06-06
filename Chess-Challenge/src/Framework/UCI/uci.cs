@@ -111,6 +111,9 @@ namespace ChessChallenge.UCI
 
             switch (tokens[0])
             {
+                case "help":
+                    Console.WriteLine("Available commands: uci, ucinewgame, position, isready, go");
+                    break;
                 case "uci":
                     Console.WriteLine("id name Chess Challenge");
                     Console.WriteLine("id author George Bland, AspectOfTheNoob, Sebastian Lague");
@@ -127,6 +130,9 @@ namespace ChessChallenge.UCI
                     break;
                 case "go":
                     GoCommand(tokens);
+                    break;
+                default:
+                    Console.WriteLine("Unknown command: " + tokens[0] + ". Type 'help' for a list of commands.");
                     break;
             }
         }
