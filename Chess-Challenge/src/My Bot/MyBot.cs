@@ -144,7 +144,7 @@ public class MyBot : IChessBot
 
         if (piece.IsKnight)
         {
-            return pieceValue + 2f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square));
+            return pieceValue + 2f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square)); //Knights on the rim are grim
         }
         //GetSliderAttacks() takes blocked squares into account, so it is not necessary to check for blockers here.
         if (piece.IsBishop)
@@ -159,14 +159,11 @@ public class MyBot : IChessBot
                 // Reward for squares controlled
                 pieceValue += 1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
 
-                // Combine all pawns (both colors)
-                ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, true) |
-                                board.GetPieceBitboard(PieceType.Pawn, false);
-
-                // Get file mask for rook's current file
+                // Figure out if the rook is on an open file
+                ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, true) | board.GetPieceBitboard(PieceType.Pawn, false);
                 ulong fileMask = FileMasks[piece.Square.File];
 
-                // Bonus for no pawns on the file
+                // Reward rooks on open files
                 if (SquareCounter(pawnsBB & fileMask) == 0)
                     pieceValue += 20f;
             }
@@ -249,7 +246,6 @@ public class MyBot : IChessBot
 
         return passedSquares;
     }
-
 
     private int SquareCounter(ulong bitboard)
     {
@@ -442,12 +438,12 @@ public class MyBot : IChessBot
             string[] openingMoves = new string[]
                 {
                 "g1f3", // Nf3
-                //"e2e4", // e4
-                //"g2g3", // g3
-                //"d2d4", // d4
-                //"c2c4", // c4
-                //"e2e3", // e3
-                //"c2c3", // c3
+                "e2e4", // e4
+                "g2g3", // g3
+                "d2d4", // d4
+                "c2c4", // c4
+                "e2e3", // e3
+                "c2c3", // c3
                 };
             Random random = new Random();
             return new Move(openingMoves[random.Next(openingMoves.Length)],board);
