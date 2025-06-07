@@ -173,7 +173,7 @@ public class MyBot : IChessBot
             else
             {
                 //Rooks better in the endgame
-                pieceValue += 50;
+                pieceValue += 100;
             }
             return pieceValue;
         }
@@ -388,11 +388,18 @@ public class MyBot : IChessBot
 
         // Get captures and order them
         Move[] legalMoves = board.GetLegalMoves();
-        List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
-
+        List<(Move move, int score)> scoredMoves = new List<(Move, int)>();        
         foreach (Move move in legalMoves)
         {
-            if (move.IsCapture || board.IsInCheck() || move.IsPromotion)
+            //Detect if move is a check
+            bool isCheck = false;
+            board.MakeMove(move);
+            if (board.IsInCheck())
+            {
+                isCheck = true;
+            }
+            board.UndoMove(move);
+            if (move.IsCapture ||isCheck|| move.IsPromotion)
             {
                 int moveScore = EstimateMoveScore(board, move);
                 scoredMoves.Add((move, moveScore));
