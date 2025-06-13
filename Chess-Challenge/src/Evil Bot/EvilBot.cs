@@ -8,7 +8,8 @@ namespace ChessChallenge.Example
 {
     public class EvilBot : IChessBot
     {
-    public int LastDepth { get; private set; }
+        //The public values are accessed by the uci interface to display various information
+        public int LastDepth { get; private set; }
         public float LastEvaluation { get; private set; }
         public string LastPV { get; private set; }
         // Piece value constants for move ordering
@@ -110,6 +111,11 @@ namespace ChessChallenge.Example
                 if (endgame == 1)//Reward advanced pawns in the endgame
                 {
                     pieceValue += 2 * pawnrank;
+                    // Passed pawns are rewarded more for advancing
+                    if (passedPawns.Contains(piece.Square.Index))
+                    {
+                        pieceValue += 4 * pawnrank;
+                    }
                 }
                 ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, piece.IsWhite);
 
@@ -134,18 +140,12 @@ namespace ChessChallenge.Example
                 if (!hasLeft && !hasRight)
                     pieceValue -= 10;
 
-                // Passed pawn bonus
-                if (passedPawns.Contains(piece.Square.Index))
-                {
-                    pieceValue += 4 * pawnrank;
-                }
-
                 return pieceValue;
             }
 
             if (piece.IsKnight)
             {
-                return pieceValue + 2f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square));
+                return pieceValue + 2f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square)); //Knights on the rim are grim
             }
             //GetSliderAttacks() takes blocked squares into account, so it is not necessary to check for blockers here.
             if (piece.IsBishop)
@@ -160,14 +160,11 @@ namespace ChessChallenge.Example
                     // Reward for squares controlled
                     pieceValue += 1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
 
-                    // Combine all pawns (both colors)
-                    ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, true) |
-                                    board.GetPieceBitboard(PieceType.Pawn, false);
-
-                    // Get file mask for rook's current file
+                    // Figure out if the rook is on an open file
+                    ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, true) | board.GetPieceBitboard(PieceType.Pawn, false);
                     ulong fileMask = FileMasks[piece.Square.File];
 
-                    // Bonus for no pawns on the file
+                    // Reward rooks on open files
                     if (SquareCounter(pawnsBB & fileMask) == 0)
                         pieceValue += 20f;
                 }
@@ -188,18 +185,13 @@ namespace ChessChallenge.Example
             //Prioritises king safety in opening and middlegames
             // If not endgame then favour mobility instead of safety
             // Calculate Manhattan distance to the nearest corner.
-            int kingFile = piece.Square.File;
-            int kingRank = piece.Square.Rank;
-            int distanceA1 = kingFile + kingRank;
-            int distanceH1 = (7 - kingFile) + kingRank;
-            int distanceA8 = kingFile + (7 - kingRank);
-            int distanceH8 = (7 - kingFile) + (7 - kingRank);
-            int minDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
-
-            // Penalty: the further the king is from a corner, the higher the penalty.
-            // Here each square away from safety deducts points.
-            float cornerDistance = minDistance * 3;
-            return endgame * cornerDistance;
+            int distanceA1 = file + rank;
+            int distanceH1 = (7 - file) + rank;
+            int distanceA8 = file + (7 - rank);
+            int distanceH8 = (7 - file) + (7 - rank);
+            int cornerDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
+            //In the endgame we reverse evaluation- the further the king is from a corner, the better.
+            return endgame * cornerDistance * 3;
         }
         private HashSet<int> GetPassedPawnSquares(Board board, bool isWhite)
         {
@@ -255,7 +247,6 @@ namespace ChessChallenge.Example
 
             return passedSquares;
         }
-
 
         private int SquareCounter(ulong bitboard)
         {
@@ -324,7 +315,7 @@ namespace ChessChallenge.Example
         {
             if (board.IsInCheckmate())
             {
-                return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
+                return (-99999 + (depth * 100), Move.NullMove, new List<Move>());
             }
 
             if (board.IsDraw())
@@ -395,10 +386,17 @@ namespace ChessChallenge.Example
             // Get captures and order them
             Move[] legalMoves = board.GetLegalMoves();
             List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
-
             foreach (Move move in legalMoves)
             {
-                if (move.IsCapture || board.IsInCheck() || move.IsPromotion)
+                //Detect if move is a check
+                bool isCheck = false;
+                board.MakeMove(move);
+                if (board.IsInCheck())
+                {
+                    isCheck = true;
+                }
+                board.UndoMove(move);
+                if (move.IsCapture || isCheck || move.IsPromotion)
                 {
                     int moveScore = EstimateMoveScore(board, move);
                     scoredMoves.Add((move, moveScore));
@@ -441,12 +439,12 @@ namespace ChessChallenge.Example
                 string[] openingMoves = new string[]
                     {
                 "g1f3", // Nf3
-                        //"e2e4", // e4
-                        //"g2g3", // g3
-                        //"d2d4", // d4
-                        //"c2c4", // c4
-                        //"e2e3", // e3
-                        //"c2c3", // c3
+                //"e2e4", // e4
+                //"g2g3", // g3
+                //"d2d4", // d4
+                //"c2c4", // c4
+                //"e2e3", // e3
+                //"c2c3", // c3
                     };
                 Random random = new Random();
                 return new Move(openingMoves[random.Next(openingMoves.Length)], board);
@@ -491,7 +489,10 @@ namespace ChessChallenge.Example
             LastDepth = depth;
             LastEvaluation = bestScore;
             LastPV = string.Join(" ", pv.Select(m => m.ToString()));
-
+            if (bestMove.IsNull)
+            {
+                bestMove = legalMoves[0];
+            }
             return bestMove;
         }
     }

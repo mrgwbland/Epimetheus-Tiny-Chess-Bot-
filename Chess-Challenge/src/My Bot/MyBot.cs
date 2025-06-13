@@ -109,6 +109,11 @@ public class MyBot : IChessBot
             if (endgame == 1)//Reward advanced pawns in the endgame
             {
                 pieceValue += 2 * pawnrank;
+                // Passed pawns are rewarded more for advancing
+                if (passedPawns.Contains(piece.Square.Index))
+                {
+                    pieceValue += 4 * pawnrank;
+                }
             }
             ulong pawnsBB = board.GetPieceBitboard(PieceType.Pawn, piece.IsWhite);
 
@@ -132,12 +137,6 @@ public class MyBot : IChessBot
             bool hasRight = file < 7 && pawnsPerFile[file + 1] > 0;
             if (!hasLeft && !hasRight)
                 pieceValue -= 10;
-
-            // Passed pawn bonus
-            if (passedPawns.Contains(piece.Square.Index))
-            {
-                pieceValue += 4 * pawnrank;
-            }
 
             return pieceValue;
         }
@@ -438,12 +437,12 @@ public class MyBot : IChessBot
             string[] openingMoves = new string[]
                 {
                 "g1f3", // Nf3
-                "e2e4", // e4
-                "g2g3", // g3
-                "d2d4", // d4
-                "c2c4", // c4
-                "e2e3", // e3
-                "c2c3", // c3
+                //"e2e4", // e4
+                //"g2g3", // g3
+                //"d2d4", // d4
+                //"c2c4", // c4
+                //"e2e3", // e3
+                //"c2c3", // c3
                 };
             Random random = new Random();
             return new Move(openingMoves[random.Next(openingMoves.Length)],board);
@@ -482,13 +481,15 @@ public class MyBot : IChessBot
         {
             depth = 1;
         }
-
         (float bestScore, Move bestMove, List<Move> pv) = Negamax(board, depth, -99999, 99999);
 
         LastDepth = depth;
         LastEvaluation = bestScore;
         LastPV = string.Join(" ", pv.Select(m => m.ToString()));
-
+        if (bestMove.IsNull)
+        {
+            bestMove = legalMoves[0];
+        }
         return bestMove;
     }
 }

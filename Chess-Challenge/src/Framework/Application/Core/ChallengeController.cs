@@ -20,7 +20,6 @@ namespace ChessChallenge.Application
             Human,
             MyBot,
             EvilBot,
-            OptimiseMyBot // New option
         }
 
         // Game state
