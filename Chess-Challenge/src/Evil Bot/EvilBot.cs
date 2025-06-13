@@ -315,7 +315,7 @@ namespace ChessChallenge.Example
         {
             if (board.IsInCheckmate())
             {
-                return (-99999 + (depth * 100), Move.NullMove, new List<Move>());
+                return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
             }
 
             if (board.IsDraw())
@@ -448,18 +448,6 @@ namespace ChessChallenge.Example
                     };
                 Random random = new Random();
                 return new Move(openingMoves[random.Next(openingMoves.Length)], board);
-            }
-
-            foreach (Move move in legalMoves)
-            {
-                board.MakeMove(move);
-
-                if (board.IsInCheckmate())
-                {
-                    return move;
-                }
-
-                board.UndoMove(move);
             }
 
             int depth = 4;

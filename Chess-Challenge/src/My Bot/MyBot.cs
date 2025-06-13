@@ -437,27 +437,15 @@ public class MyBot : IChessBot
             string[] openingMoves = new string[]
                 {
                 "g1f3", // Nf3
-                //"e2e4", // e4
-                //"g2g3", // g3
-                //"d2d4", // d4
-                //"c2c4", // c4
-                //"e2e3", // e3
-                //"c2c3", // c3
+                "e2e4", // e4
+                "g2g3", // g3
+                "d2d4", // d4
+                "c2c4", // c4
+                "e2e3", // e3
+                "c2c3", // c3
                 };
             Random random = new Random();
             return new Move(openingMoves[random.Next(openingMoves.Length)],board);
-        }
-
-        foreach (Move move in legalMoves)
-        {
-            board.MakeMove(move);
-
-            if (board.IsInCheckmate())
-            {
-                return move;
-            }
-
-            board.UndoMove(move);
         }
 
         int depth = 4;
