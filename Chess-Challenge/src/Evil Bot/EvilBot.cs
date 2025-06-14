@@ -8,11 +8,12 @@ namespace ChessChallenge.Example
 {
     public class EvilBot : IChessBot
     {
+
         //The public values are accessed by the uci interface to display various information
         public int LastDepth { get; private set; }
         public float LastEvaluation { get; private set; }
         public string LastPV { get; private set; }
-        // Piece value constants for move ordering
+        // Basic piece value constants
         private static readonly int[] PieceValues = {
         0,      // None
         100,    // Pawn
@@ -132,7 +133,7 @@ namespace ChessChallenge.Example
                 int thisFileCount = pawnsPerFile[file];
                 // Doubled pawn penalty: -x for each same colour pawn on the file
                 if (thisFileCount > 1)
-                    pieceValue -= 5*(thisFileCount - 1);
+                    pieceValue -= 5 * (thisFileCount - 1);
 
                 // Isolated pawn penalty: -10 if no pawns on adjacent files
                 bool hasLeft = file > 0 && pawnsPerFile[file - 1] > 0;
@@ -317,40 +318,55 @@ namespace ChessChallenge.Example
 
         private (float, Move, List<Move>) Negamax(Board board, int depth, float alpha, float beta)
         {
+            // Check immediate terminal conditions
             if (board.IsInCheckmate())
             {
                 return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
             }
-
             if (board.IsDraw())
             {
                 return (0, Move.NullMove, new List<Move>());
             }
-
             if (depth == 0)
             {
                 float finalEval = QuiescenceSearch(board, alpha, beta);
                 return (finalEval, Move.NullMove, new List<Move>());
             }
 
-            Move[] legalMoves = board.GetLegalMoves();
-            Move bestMove = Move.NullMove;
-            float bestEval = -99999;
-            List<Move> bestPV = new();
+            // Null move pruning
+            int reduction = 2;
+            if (!board.IsInCheck() && depth >= reduction + 1)
+            {
+                board.TrySkipTurn();
+                (float evalNull, _, _) = Negamax(board, depth - 1 - reduction, -beta, -alpha);
+                evalNull = -evalNull;
+                board.UndoSkipTurn();
 
-            // Order moves
-            List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
+                // If result is good enough, prune
+                if (evalNull >= beta)
+                {
+                    return (beta, Move.NullMove, new List<Move>());
+                }
+            }
+
+            // Generate and order moves
+            Move[] legalMoves = board.GetLegalMoves();
+            float bestEval = -99999;
+            Move bestMove = Move.NullMove;
+            List<(Move move, int score)> scoredMoves = new();
             foreach (Move move in legalMoves)
             {
                 int moveScore = EstimateMoveScore(board, move);
                 scoredMoves.Add((move, moveScore));
             }
-            scoredMoves.Sort((a, b) => b.score.CompareTo(a.score)); // Sort in descending order
+            scoredMoves.Sort((a, b) => b.score.CompareTo(a.score));
 
+            List<Move> bestPV = new();
+            // Search moves
             foreach (var (move, _) in scoredMoves)
             {
                 board.MakeMove(move);
-                (float eval, _, List<Move> pv) = Negamax(board, depth - 1, -beta, -alpha);
+                (float eval, _, List<Move> subPV) = Negamax(board, depth - 1, -beta, -alpha);
                 eval = -eval;
                 board.UndoMove(move);
 
@@ -359,11 +375,10 @@ namespace ChessChallenge.Example
                     bestEval = eval;
                     bestMove = move;
                     bestPV = new List<Move> { move };
-                    bestPV.AddRange(pv);
+                    bestPV.AddRange(subPV);
                 }
 
                 alpha = Math.Max(alpha, eval);
-
                 if (alpha >= beta)
                 {
                     break; // Beta cutoff
@@ -443,12 +458,12 @@ namespace ChessChallenge.Example
                 string[] openingMoves = new string[]
                     {
                 "g1f3", // Nf3
-                //"e2e4", // e4
-                //"g2g3", // g3
-                //"d2d4", // d4
-                //"c2c4", // c4
-                //"e2e3", // e3
-                //"c2c3", // c3
+                        //"e2e4", // e4
+                        //"g2g3", // g3
+                        //"d2d4", // d4
+                        //"c2c4", // c4
+                        //"e2e3", // e3
+                        //"c2c3", // c3
                     };
                 Random random = new Random();
                 return new Move(openingMoves[random.Next(openingMoves.Length)], board);

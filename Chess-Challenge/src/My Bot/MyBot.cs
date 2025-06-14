@@ -6,11 +6,12 @@ using System.Linq;
 using System.IO;
 public class MyBot : IChessBot
 {
+
     //The public values are accessed by the uci interface to display various information
     public int LastDepth { get; private set; }
     public float LastEvaluation { get; private set; }
     public string LastPV { get; private set; }
-    // Piece value constants for move ordering
+    // Basic piece value constants
     private static readonly int[] PieceValues = {
         0,      // None
         100,    // Pawn
@@ -58,8 +59,10 @@ public class MyBot : IChessBot
                 nonPawnPieceCount += pieceLists[i].Count;
             }
         }
+
+        // Endgame is true if there are fewer than 6 non-pawn pieces left
         int endgame;
-        if (nonPawnPieceCount < 7)
+        if (nonPawnPieceCount < 6)
         {
             endgame = 1;
         }
@@ -128,7 +131,7 @@ public class MyBot : IChessBot
             int thisFileCount = pawnsPerFile[file];
             // Doubled pawn penalty: -x for each same colour pawn on the file
             if (thisFileCount > 1)
-                pieceValue -= 5*(thisFileCount - 1);
+                pieceValue -= 5 * (thisFileCount - 1);
 
             // Isolated pawn penalty: -10 if no pawns on adjacent files
             bool hasLeft = file > 0 && pawnsPerFile[file - 1] > 0;
@@ -152,7 +155,7 @@ public class MyBot : IChessBot
         if (piece.IsRook)
         {
             if (endgame == -1)//Non-endgame evaluation for rooks
-            { 
+            {
                 // Reward for squares controlled
                 pieceValue += 1f * SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Rook, piece.Square, board));
 
@@ -178,7 +181,7 @@ public class MyBot : IChessBot
         }
 
         // If nothing prior, then the piece must be a king
-        if (endgame==-1)
+        if (endgame == -1)
         {
             pieceValue -= SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Queen, piece.Square, board));
         }
@@ -191,7 +194,7 @@ public class MyBot : IChessBot
         int distanceH8 = (7 - file) + (7 - rank);
         int cornerDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
         //In the endgame we reverse evaluation- the further the king is from a corner, the better.
-        return pieceValue + (endgame * cornerDistance * 3);
+        return endgame * cornerDistance * 3;
     }
     private HashSet<int> GetPassedPawnSquares(Board board, bool isWhite)
     {
@@ -313,40 +316,55 @@ public class MyBot : IChessBot
 
     private (float, Move, List<Move>) Negamax(Board board, int depth, float alpha, float beta)
     {
+        // Check immediate terminal conditions
         if (board.IsInCheckmate())
         {
             return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
         }
-
         if (board.IsDraw())
         {
             return (0, Move.NullMove, new List<Move>());
         }
-
         if (depth == 0)
         {
             float finalEval = QuiescenceSearch(board, alpha, beta);
             return (finalEval, Move.NullMove, new List<Move>());
         }
 
-        Move[] legalMoves = board.GetLegalMoves();
-        Move bestMove = Move.NullMove;
-        float bestEval = -99999;
-        List<Move> bestPV = new();
+        // Null move pruning
+        int reduction = 2;
+        if (!board.IsInCheck() && depth >= reduction + 1)
+        {
+            board.TrySkipTurn();
+            (float evalNull, _, _) = Negamax(board, depth - 1 - reduction, -beta, -alpha);
+            evalNull = -evalNull;
+            board.UndoSkipTurn();
 
-        // Order moves
-        List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
+            // If result is good enough, prune
+            if (evalNull >= beta)
+            {
+                return (beta, Move.NullMove, new List<Move>());
+            }
+        }
+
+        // Generate and order moves
+        Move[] legalMoves = board.GetLegalMoves();
+        float bestEval = -99999;
+        Move bestMove = Move.NullMove;
+        List<(Move move, int score)> scoredMoves = new();
         foreach (Move move in legalMoves)
         {
             int moveScore = EstimateMoveScore(board, move);
             scoredMoves.Add((move, moveScore));
         }
-        scoredMoves.Sort((a, b) => b.score.CompareTo(a.score)); // Sort in descending order
+        scoredMoves.Sort((a, b) => b.score.CompareTo(a.score));
 
+        List<Move> bestPV = new();
+        // Search moves
         foreach (var (move, _) in scoredMoves)
         {
             board.MakeMove(move);
-            (float eval, _, List<Move> pv) = Negamax(board, depth - 1, -beta, -alpha);
+            (float eval, _, List<Move> subPV) = Negamax(board, depth - 1, -beta, -alpha);
             eval = -eval;
             board.UndoMove(move);
 
@@ -355,11 +373,10 @@ public class MyBot : IChessBot
                 bestEval = eval;
                 bestMove = move;
                 bestPV = new List<Move> { move };
-                bestPV.AddRange(pv);
+                bestPV.AddRange(subPV);
             }
 
             alpha = Math.Max(alpha, eval);
-
             if (alpha >= beta)
             {
                 break; // Beta cutoff
@@ -383,9 +400,9 @@ public class MyBot : IChessBot
             alpha = standPat;
         }
 
-        // Get interesting moves and order them
+        // Get captures and order them
         Move[] legalMoves = board.GetLegalMoves();
-        List<(Move move, int score)> scoredMoves = new List<(Move, int)>();        
+        List<(Move move, int score)> scoredMoves = new List<(Move, int)>();
         foreach (Move move in legalMoves)
         {
             //Detect if move is a check
@@ -396,7 +413,7 @@ public class MyBot : IChessBot
                 isCheck = true;
             }
             board.UndoMove(move);
-            if (move.IsCapture ||isCheck|| move.IsPromotion||board.IsInCheck())
+            if (move.IsCapture || isCheck || move.IsPromotion || board.IsInCheck())
             {
                 int moveScore = EstimateMoveScore(board, move);
                 scoredMoves.Add((move, moveScore));
@@ -434,20 +451,20 @@ public class MyBot : IChessBot
         }
 
         // Play a random opening move on move 1 as White
-        if (board.IsWhiteToMove && board.GetFenString().StartsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))// Only do this in the starting position obviously
+        if (board.IsWhiteToMove && board.GetFenString().StartsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))
         {
-            string[] openingMoves = new string[] //Random first move from selected "good moves" makes the bot more varied and harder to prep against
+            string[] openingMoves = new string[]
                 {
                 "g1f3", // Nf3
-                //"e2e4", // e4
-                //"g2g3", // g3
-                //"d2d4", // d4
-                //"c2c4", // c4
-                //"e2e3", // e3
-                //"c2c3", // c3
+                        //"e2e4", // e4
+                        //"g2g3", // g3
+                        //"d2d4", // d4
+                        //"c2c4", // c4
+                        //"e2e3", // e3
+                        //"c2c3", // c3
                 };
             Random random = new Random();
-            return new Move(openingMoves[random.Next(openingMoves.Length)],board);
+            return new Move(openingMoves[random.Next(openingMoves.Length)], board);
         }
 
         int depth = 4;
@@ -476,6 +493,7 @@ public class MyBot : IChessBot
         {
             depth = 1;
         }
+
         (float bestScore, Move bestMove, List<Move> pv) = Negamax(board, depth, -99999, 99999);
 
         LastDepth = depth;
