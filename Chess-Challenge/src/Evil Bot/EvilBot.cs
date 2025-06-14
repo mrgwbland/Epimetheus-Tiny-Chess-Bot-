@@ -130,9 +130,9 @@ namespace ChessChallenge.Example
                 }
 
                 int thisFileCount = pawnsPerFile[file];
-                // Doubled pawn penalty: -1 for each same colour pawn on the file
+                // Doubled pawn penalty: -x for each same colour pawn on the file
                 if (thisFileCount > 1)
-                    pieceValue -= (thisFileCount - 1);
+                    pieceValue -= 5*(thisFileCount - 1);
 
                 // Isolated pawn penalty: -10 if no pawns on adjacent files
                 bool hasLeft = file > 0 && pawnsPerFile[file - 1] > 0;

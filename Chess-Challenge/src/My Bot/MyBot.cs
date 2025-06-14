@@ -58,10 +58,8 @@ public class MyBot : IChessBot
                 nonPawnPieceCount += pieceLists[i].Count;
             }
         }
-
-        // Endgame is true if there are fewer than 6 non-pawn pieces left
         int endgame;
-        if (nonPawnPieceCount < 6)
+        if (nonPawnPieceCount < 7)
         {
             endgame = 1;
         }
@@ -128,9 +126,9 @@ public class MyBot : IChessBot
             }
 
             int thisFileCount = pawnsPerFile[file];
-            // Doubled pawn penalty: -1 for each same colour pawn on the file
+            // Doubled pawn penalty: -x for each same colour pawn on the file
             if (thisFileCount > 1)
-                pieceValue -= (thisFileCount - 1);
+                pieceValue -= 5*(thisFileCount - 1);
 
             // Isolated pawn penalty: -10 if no pawns on adjacent files
             bool hasLeft = file > 0 && pawnsPerFile[file - 1] > 0;
