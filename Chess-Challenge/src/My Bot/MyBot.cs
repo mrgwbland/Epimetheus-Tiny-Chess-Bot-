@@ -18,7 +18,7 @@ public class MyBot : IChessBot
         320,    // Bishop
         500,    // Rook
         900,    // Queen
-        int.MaxValue   // King
+        0   // King
     };
     private static readonly ulong[] FileMasks = {
     0x0101010101010101, // File A
@@ -180,6 +180,10 @@ public class MyBot : IChessBot
         }
 
         // If nothing prior, then the piece must be a king
+        if (endgame==-1)
+        {
+            pieceValue -= SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Queen, piece.Square, board));
+        }
         //Prioritises king safety in opening and middlegames
         // If not endgame then favour mobility instead of safety
         // Calculate Manhattan distance to the nearest corner.
@@ -189,7 +193,7 @@ public class MyBot : IChessBot
         int distanceH8 = (7 - file) + (7 - rank);
         int cornerDistance = Math.Min(Math.Min(distanceA1, distanceH1), Math.Min(distanceA8, distanceH8));
         //In the endgame we reverse evaluation- the further the king is from a corner, the better.
-        return endgame * cornerDistance * 3;
+        return pieceValue + (endgame * cornerDistance * 3);
     }
     private HashSet<int> GetPassedPawnSquares(Board board, bool isWhite)
     {
@@ -474,7 +478,6 @@ public class MyBot : IChessBot
         {
             depth = 1;
         }
-        depth = 1; //For testing purposes, set depth to 1
         (float bestScore, Move bestMove, List<Move> pv) = Negamax(board, depth, -99999, 99999);
 
         LastDepth = depth;

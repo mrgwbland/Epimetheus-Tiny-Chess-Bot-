@@ -20,7 +20,7 @@ namespace ChessChallenge.Example
         320,    // Bishop
         500,    // Rook
         900,    // Queen
-        int.MaxValue   // King
+        0   // King
     };
         private static readonly ulong[] FileMasks = {
     0x0101010101010101, // File A
@@ -182,6 +182,10 @@ namespace ChessChallenge.Example
             }
 
             // If nothing prior, then the piece must be a king
+            if (endgame == -1)
+            {
+                pieceValue -= SquareCounter(BitboardHelper.GetSliderAttacks(PieceType.Queen, piece.Square, board));
+            }
             //Prioritises king safety in opening and middlegames
             // If not endgame then favour mobility instead of safety
             // Calculate Manhattan distance to the nearest corner.
@@ -477,7 +481,6 @@ namespace ChessChallenge.Example
                 depth = 1;
             }
 
-            depth = 1; //For testing purposes, set depth to 1
             (float bestScore, Move bestMove, List<Move> pv) = Negamax(board, depth, -99999, 99999);
 
             LastDepth = depth;
