@@ -145,7 +145,7 @@ namespace ChessChallenge.Example
 
             if (piece.IsKnight)
             {
-                return pieceValue + 2f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square)); //Knights on the rim are grim
+                return pieceValue + 3f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square)); //Knights on the rim are grim
             }
             //GetSliderAttacks() takes blocked squares into account, so it is not necessary to check for blockers here.
             if (piece.IsBishop)
@@ -166,7 +166,7 @@ namespace ChessChallenge.Example
 
                     // Reward rooks on open files
                     if (SquareCounter(pawnsBB & fileMask) == 0)
-                        pieceValue += 20f;
+                        pieceValue += 50f;
                 }
                 else
                 {
@@ -396,7 +396,7 @@ namespace ChessChallenge.Example
                     isCheck = true;
                 }
                 board.UndoMove(move);
-                if (move.IsCapture || isCheck || move.IsPromotion)
+                if (move.IsCapture || isCheck || move.IsPromotion || board.IsInCheck())
                 {
                     int moveScore = EstimateMoveScore(board, move);
                     scoredMoves.Add((move, moveScore));
@@ -457,6 +457,11 @@ namespace ChessChallenge.Example
                 depth += -(int)((SquareCounter(board.AllPiecesBitboard) / 10) * (SquareCounter(board.AllPiecesBitboard) / 10)) + 3;
             }
 
+            if (timer.MillisecondsRemaining > 600000)//Think longer when time is over 10 minute
+            {
+                depth += 1;
+            }
+
             if (timer.MillisecondsRemaining > 60000)//Think longer when time is over 1 minute
             {
                 depth += 1;
@@ -472,6 +477,7 @@ namespace ChessChallenge.Example
                 depth = 1;
             }
 
+            depth = 1; //For testing purposes, set depth to 1
             (float bestScore, Move bestMove, List<Move> pv) = Negamax(board, depth, -99999, 99999);
 
             LastDepth = depth;

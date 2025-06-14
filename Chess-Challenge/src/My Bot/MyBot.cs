@@ -143,7 +143,7 @@ public class MyBot : IChessBot
 
         if (piece.IsKnight)
         {
-            return pieceValue + 2f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square)); //Knights on the rim are grim
+            return pieceValue + 3f * SquareCounter(BitboardHelper.GetKnightAttacks(piece.Square)); //Knights on the rim are grim
         }
         //GetSliderAttacks() takes blocked squares into account, so it is not necessary to check for blockers here.
         if (piece.IsBishop)
@@ -164,7 +164,7 @@ public class MyBot : IChessBot
 
                 // Reward rooks on open files
                 if (SquareCounter(pawnsBB & fileMask) == 0)
-                    pieceValue += 20f;
+                    pieceValue += 50f;
             }
             else
             {
@@ -381,7 +381,7 @@ public class MyBot : IChessBot
             alpha = standPat;
         }
 
-        // Get captures and order them
+        // Get interesting moves and order them
         Move[] legalMoves = board.GetLegalMoves();
         List<(Move move, int score)> scoredMoves = new List<(Move, int)>();        
         foreach (Move move in legalMoves)
@@ -394,7 +394,7 @@ public class MyBot : IChessBot
                 isCheck = true;
             }
             board.UndoMove(move);
-            if (move.IsCapture ||isCheck|| move.IsPromotion)
+            if (move.IsCapture ||isCheck|| move.IsPromotion||board.IsInCheck())
             {
                 int moveScore = EstimateMoveScore(board, move);
                 scoredMoves.Add((move, moveScore));
@@ -432,17 +432,17 @@ public class MyBot : IChessBot
         }
 
         // Play a random opening move on move 1 as White
-        if (board.IsWhiteToMove && board.GetFenString().StartsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))
+        if (board.IsWhiteToMove && board.GetFenString().StartsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))// Only do this in the starting position obviously
         {
-            string[] openingMoves = new string[]
+            string[] openingMoves = new string[] //Random first move from selected "good moves" makes the bot more varied and harder to prep against
                 {
                 "g1f3", // Nf3
-                "e2e4", // e4
-                "g2g3", // g3
-                "d2d4", // d4
-                "c2c4", // c4
-                "e2e3", // e3
-                "c2c3", // c3
+                //"e2e4", // e4
+                //"g2g3", // g3
+                //"d2d4", // d4
+                //"c2c4", // c4
+                //"e2e3", // e3
+                //"c2c3", // c3
                 };
             Random random = new Random();
             return new Move(openingMoves[random.Next(openingMoves.Length)],board);
@@ -453,6 +453,11 @@ public class MyBot : IChessBot
         if (SquareCounter(board.AllPiecesBitboard) < 14)//Adjust depth when less pieces (less moves so deeper search takes the same time)
         {
             depth += -(int)((SquareCounter(board.AllPiecesBitboard) / 10) * (SquareCounter(board.AllPiecesBitboard) / 10)) + 3;
+        }
+
+        if (timer.MillisecondsRemaining > 600000)//Think longer when time is over 10 minute
+        {
+            depth += 1;
         }
 
         if (timer.MillisecondsRemaining > 60000)//Think longer when time is over 1 minute
@@ -469,6 +474,7 @@ public class MyBot : IChessBot
         {
             depth = 1;
         }
+        depth = 1; //For testing purposes, set depth to 1
         (float bestScore, Move bestMove, List<Move> pv) = Negamax(board, depth, -99999, 99999);
 
         LastDepth = depth;
