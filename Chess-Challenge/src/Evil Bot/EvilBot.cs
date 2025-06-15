@@ -7,9 +7,7 @@ using System.Linq;
 namespace ChessChallenge.Example
 {
     public class EvilBot : IChessBot
-    {
-
-        //The public values are accessed by the uci interface to display various information
+    {//The public values are accessed by the uci interface to display various information
         public int LastDepth { get; private set; }
         public float LastEvaluation { get; private set; }
         public string LastPV { get; private set; }
@@ -266,8 +264,7 @@ namespace ChessChallenge.Example
             return count;
         }
 
-        // Estimate move score for ordering
-        private int EstimateMoveScore(Board board, Move move)
+        private int EstimateMoveScore(Board board, Move move)// Estimate move score for ordering
         {
             int score = 0;
 
@@ -318,15 +315,17 @@ namespace ChessChallenge.Example
 
         private (float, Move, List<Move>) Negamax(Board board, int depth, float alpha, float beta)
         {
-            // Check immediate terminal conditions
+            // Check terminal conditions
             if (board.IsInCheckmate())
             {
                 return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
             }
+
             if (board.IsDraw())
             {
                 return (0, Move.NullMove, new List<Move>());
             }
+
             if (depth == 0)
             {
                 float finalEval = QuiescenceSearch(board, alpha, beta);
@@ -342,18 +341,23 @@ namespace ChessChallenge.Example
                 evalNull = -evalNull;
                 board.UndoSkipTurn();
 
-                // If result is good enough, prune
+                // If null move is good enough, return beta but continue with normal search
+                // Don't return here - we still need to find the actual best move
                 if (evalNull >= beta)
                 {
-                    return (beta, Move.NullMove, new List<Move>());
+                    // You could return here for efficiency, but you'd need to search at least one move
+                    // to get a real best move. For now, let's continue with the search.
                 }
             }
 
-            // Generate and order moves
+            // Generate legal moves first to check for terminal positions
             Move[] legalMoves = board.GetLegalMoves();
+
+            // Order moves
             float bestEval = -99999;
-            Move bestMove = Move.NullMove;
+            Move bestMove = legalMoves[0]; // Initialize with first legal move instead of NullMove
             List<(Move move, int score)> scoredMoves = new();
+
             foreach (Move move in legalMoves)
             {
                 int moveScore = EstimateMoveScore(board, move);
@@ -362,6 +366,7 @@ namespace ChessChallenge.Example
             scoredMoves.Sort((a, b) => b.score.CompareTo(a.score));
 
             List<Move> bestPV = new();
+
             // Search moves
             foreach (var (move, _) in scoredMoves)
             {
@@ -450,23 +455,6 @@ namespace ChessChallenge.Example
             if (legalMoves.Length == 1)
             {
                 return legalMoves[0];
-            }
-
-            // Play a random opening move on move 1 as White
-            if (board.IsWhiteToMove && board.GetFenString().StartsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))
-            {
-                string[] openingMoves = new string[]
-                    {
-                "g1f3", // Nf3
-                        //"e2e4", // e4
-                        //"g2g3", // g3
-                        //"d2d4", // d4
-                        //"c2c4", // c4
-                        //"e2e3", // e3
-                        //"c2c3", // c3
-                    };
-                Random random = new Random();
-                return new Move(openingMoves[random.Next(openingMoves.Length)], board);
             }
 
             int depth = 4;

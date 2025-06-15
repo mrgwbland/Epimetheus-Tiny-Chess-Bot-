@@ -6,7 +6,6 @@ using System.Linq;
 using System.IO;
 public class MyBot : IChessBot
 {
-
     //The public values are accessed by the uci interface to display various information
     public int LastDepth { get; private set; }
     public float LastEvaluation { get; private set; }
@@ -315,20 +314,10 @@ public class MyBot : IChessBot
 
     private (float, Move, List<Move>) Negamax(Board board, int depth, float alpha, float beta)
     {
-        // Generate legal moves first to check for terminal positions
-        Move[] legalMoves = board.GetLegalMoves();
-
         // Check terminal conditions
-        if (legalMoves.Length == 0)
+        if (board.IsInCheckmate())
         {
-            if (board.IsInCheckmate())
-            {
-                return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
-            }
-            else // Stalemate
-            {
-                return (0, Move.NullMove, new List<Move>());
-            }
+            return (-99999 - (depth * 100), Move.NullMove, new List<Move>());
         }
 
         if (board.IsDraw())
@@ -360,9 +349,12 @@ public class MyBot : IChessBot
             }
         }
 
+        // Generate legal moves first to check for terminal positions
+        Move[] legalMoves = board.GetLegalMoves();
+
         // Order moves
         float bestEval = -99999;
-        Move bestMove = legalMoves[0]; // Initialize with first legal move instead of NullMove
+        Move bestMove = legalMoves[0];
         List<(Move move, int score)> scoredMoves = new();
 
         foreach (Move move in legalMoves)
@@ -462,23 +454,6 @@ public class MyBot : IChessBot
         if (legalMoves.Length == 1)
         {
             return legalMoves[0];
-        }
-
-        // Play a random opening move on move 1 as White
-        if (board.IsWhiteToMove && board.GetFenString().StartsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))
-        {
-            string[] openingMoves = new string[]
-                {
-                "g1f3", // Nf3
-                //"e2e4", // e4
-                //"g2g3", // g3
-                //"d2d4", // d4
-                //"c2c4", // c4
-                //"e2e3", // e3
-                //"c2c3", // c3
-                };
-            Random random = new Random();
-            return new Move(openingMoves[random.Next(openingMoves.Length)], board);
         }
 
         int depth = 4;
