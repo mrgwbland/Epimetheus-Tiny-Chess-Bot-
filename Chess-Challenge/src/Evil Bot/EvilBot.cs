@@ -37,7 +37,7 @@ namespace ChessChallenge.Example
         {
             if (board.IsInCheckmate())
             {
-                return -99999;
+                return -100000 + board.PlyCount;
             }
 
             if (board.IsDraw())
@@ -501,10 +501,6 @@ namespace ChessChallenge.Example
             LastDepth = depth;
             LastEvaluation = bestScore;
             LastPV = string.Join(" ", pv.Select(m => m.ToString()));
-            if (bestMove.IsNull)
-            {
-                bestMove = legalMoves[0];
-            }
             return bestMove;
         }
     }
