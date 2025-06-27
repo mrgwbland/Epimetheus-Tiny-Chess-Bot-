@@ -3,24 +3,26 @@ using ChessChallenge.Application;
 using ChessChallenge.Application.APIHelpers;
 using ChessChallenge.Chess;
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ChessChallenge.UCI
 {
     class UCIBot
     {
         IChessBot bot;
-        ChallengeController.PlayerType type;
         Chess.Board board;
         APIMoveGen moveGen;
+        CancellationTokenSource thinkingCancellationSource;
 
         static readonly string defaultFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-        public UCIBot(IChessBot bot, ChallengeController.PlayerType type)
+        public UCIBot(IChessBot bot)
         {
             this.bot = bot;
-            this.type = type;
             moveGen = new APIMoveGen();
             board = new Chess.Board();
+            thinkingCancellationSource = new CancellationTokenSource();
         }
 
         void PositionCommand(string[] args)
@@ -62,6 +64,11 @@ namespace ChessChallenge.UCI
 
         void GoCommand(string[] args)
         {
+            // Cancel any previous thinking operation
+            thinkingCancellationSource.Cancel();
+            thinkingCancellationSource = new CancellationTokenSource();
+            var token = thinkingCancellationSource.Token;
+
             int wtime = 0, btime = 0;
             API.Board apiBoard = new API.Board(board);
             for (int i = 0; i < args.Length; i++)
@@ -76,8 +83,14 @@ namespace ChessChallenge.UCI
                 }
                 else if (args[i] == "movetime")
                 {
-                    btime = Int32.Parse(args[i + 1]);
+                    //To be implemented properly
+                    btime = Int32.Parse(args[i + 1])*40;//This is a hack- bot uses /40 of the time given
                     wtime = btime;
+                }
+                else if (args[i] == "infinite")
+                {
+                    wtime = int.MaxValue;
+                    btime = int.MaxValue;
                 }
             }
             if (!apiBoard.IsWhiteToMove)
@@ -86,19 +99,38 @@ namespace ChessChallenge.UCI
                 wtime = btime;
                 btime = tmp;
             }
-            Timer timer = new Timer(wtime, btime, 0);
-            API.Move move = bot.Think(apiBoard, timer);
+            ChessChallenge.API.Timer timer = new ChessChallenge.API.Timer(wtime, btime, 0);
 
-            // Output info score cp <score> if available
-            if (bot is MyBot myBot)
+            MyBot myBot = (MyBot)bot;
+            myBot.OnDepthComplete = (depth, eval, pv) =>
             {
                 Console.Write("info ");
-                Console.Write("depth " + myBot.LastDepth + " ");
-                Console.Write("score cp " + (int)myBot.LastEvaluation + " ");
-                Console.Write("pv " + myBot.LastPV + " ");
+                Console.Write("depth " + depth + " ");
+                Console.Write("score cp " + (int)eval + " ");
+                Console.Write("pv " + pv + " ");
                 Console.Write("\n");
-            }
-            Console.WriteLine($"bestmove {move.ToString()}");
+            };
+
+            // Start thinking in a separate task
+            Task.Run(() =>
+            {
+                try
+                {
+                    API.Move move = bot.Think(apiBoard, timer);
+                    if (!token.IsCancellationRequested)
+                    {
+                        Console.WriteLine($"bestmove {move.ToString()}");
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Thinking was canceled, do nothing
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"info string Error: {ex.Message}");
+                }
+            }, token);
         }
 
         void ExecCommand(string line)
@@ -120,7 +152,7 @@ namespace ChessChallenge.UCI
                     Console.WriteLine("uciok");
                     break;
                 case "ucinewgame":
-                    bot = ChallengeController.CreateBot(type);
+                    bot = new MyBot();
                     break;
                 case "position":
                     PositionCommand(tokens);
@@ -130,6 +162,10 @@ namespace ChessChallenge.UCI
                     break;
                 case "go":
                     GoCommand(tokens);
+                    break;
+                case "stop":
+                    ((MyBot)bot).MaxTimeForThisMove = 0;
+                    thinkingCancellationSource.Cancel();
                     break;
                 default:
                     Console.WriteLine("Unknown command: " + tokens[0] + ". Type 'help' for a list of commands.");

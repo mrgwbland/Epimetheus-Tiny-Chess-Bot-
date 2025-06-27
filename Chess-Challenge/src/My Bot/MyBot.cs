@@ -10,6 +10,9 @@ public class MyBot : IChessBot
     public int LastDepth { get; private set; }
     public float LastEvaluation { get; private set; }
     public string LastPV { get; private set; }
+    // Delegate for depth completion notifications
+    public delegate void DepthCompleteHandler(int depth, float eval, string pv);
+    public DepthCompleteHandler OnDepthComplete { get; set; }
     // Basic piece value constants
     private static readonly int[] PieceValues = {
         0,      // None
@@ -30,6 +33,34 @@ public class MyBot : IChessBot
     0x4040404040404040, // File G
     0x8080808080808080  // File H
     };
+    // Time management and search state
+    private long NodesVisited;
+    private Timer CurrentTimer;
+    public int MaxTimeForThisMove { get; set; }
+
+    // Transposition table
+    private const int TT_SIZE = 1 << 20; // ~1 million entries
+    private TTEntry[] _transpositionTable = new TTEntry[TT_SIZE];
+
+    private struct TTEntry
+    {
+        public ulong Key;
+        public int Depth;
+        public float Value;
+        public NodeType NodeType;
+        public Move BestMove;
+    }
+
+    private enum NodeType { Exact, LowerBound, UpperBound }
+    // Timeout exception for search termination
+    private class TimeoutException : Exception { }
+
+    private void CheckTimeout()
+    {
+        NodesVisited++;
+        if (NodesVisited % 1000 == 0 && CurrentTimer.MillisecondsElapsedThisTurn >= MaxTimeForThisMove)// Check every 1000 nodes
+            throw new TimeoutException();
+    }
     private float Evaluate(Board board) //Evaluates a single position without depth
     {
         if (board.IsInCheckmate())
@@ -86,7 +117,7 @@ public class MyBot : IChessBot
                 }
             }
         }
-
+        //Position returns eval for the perspective of the side to move
         if (board.IsWhiteToMove)
         {
             return whiteScore - blackScore;
@@ -314,6 +345,23 @@ public class MyBot : IChessBot
 
     private (float, Move, List<Move>) Negamax(Board board, int depth, float alpha, float beta)
     {
+        CheckTimeout();
+
+        ulong zobristKey = board.ZobristKey;
+        TTEntry ttEntry = _transpositionTable[zobristKey % TT_SIZE];
+        bool ttHit = ttEntry.Key == zobristKey;
+        Move bestMoveFromTT = ttHit ? ttEntry.BestMove : Move.NullMove;
+
+        // TT cutoffs
+        if (ttHit && ttEntry.Depth >= depth)
+        {
+            if (ttEntry.NodeType == NodeType.Exact)
+                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
+            if (ttEntry.NodeType == NodeType.LowerBound && ttEntry.Value >= beta)
+                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
+            if (ttEntry.NodeType == NodeType.UpperBound && ttEntry.Value <= alpha)
+                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
+        }
         // Check terminal conditions
         if (board.IsInCheckmate())
         {
@@ -356,6 +404,7 @@ public class MyBot : IChessBot
         float bestEval = -99999;
         Move bestMove = legalMoves[0];
         List<(Move move, int score)> scoredMoves = new();
+        float alphaOriginal = alpha;
 
         foreach (Move move in legalMoves)
         {
@@ -389,11 +438,25 @@ public class MyBot : IChessBot
             }
         }
 
+        // Store in transposition table only if we found a valid move
+        TTEntry newEntry = new TTEntry
+        {
+            Key = zobristKey,
+            Depth = depth,
+            Value = bestEval,
+            BestMove = bestMove,
+            NodeType = bestEval <= alphaOriginal ? NodeType.UpperBound :
+                      bestEval >= beta ? NodeType.LowerBound : NodeType.Exact
+        };
+        _transpositionTable[zobristKey % TT_SIZE] = newEntry;
+
+
         return (bestEval, bestMove, bestPV);
     }
 
     private float QuiescenceSearch(Board board, float alpha, float beta)
     {
+        CheckTimeout();
         float standPat = Evaluate(board);
 
         if (standPat >= beta)
@@ -449,45 +512,34 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
+        NodesVisited = 0;
+        CurrentTimer = timer;
+        MaxTimeForThisMove = timer.MillisecondsRemaining / 40;
         Move[] legalMoves = board.GetLegalMoves();
 
-        if (legalMoves.Length == 1)
+        Move bestMove = legalMoves[0];
+        int depth = 1;
+        int maxDepth = 50;
+
+        // Iterative deepening with time management
+        while (depth <= maxDepth)
         {
-            return legalMoves[0];
+            try
+            {
+                (float score, Move move, List<Move> pv) = Negamax(board, depth, -99999, 99999);
+                bestMove = move;
+                LastDepth = depth;
+                LastEvaluation = score;
+                LastPV = string.Join(" ", pv);
+                OnDepthComplete?.Invoke(depth, score, LastPV);
+                depth++;
+            }
+            catch (TimeoutException)
+            {
+                break;
+            }
         }
 
-        int depth = 4;
-
-        if (SquareCounter(board.AllPiecesBitboard) < 14)//Adjust depth when less pieces (less moves so deeper search takes the same time)
-        {
-            depth += -(int)((SquareCounter(board.AllPiecesBitboard) / 10) * (SquareCounter(board.AllPiecesBitboard) / 10)) + 3;
-        }
-
-        if (timer.MillisecondsRemaining > 600000)//Think longer when time is over 10 minute
-        {
-            depth += 1;
-        }
-
-        if (timer.MillisecondsRemaining > 60000)//Think longer when time is over 1 minute
-        {
-            depth += 1;
-        }
-
-        if (timer.MillisecondsRemaining < 5000)//Think less when under 5 seconds
-        {
-            depth -= 2;
-        }
-
-        if (timer.MillisecondsRemaining < 1000)//Play instantly when under 1 second
-        {
-            depth = 1;
-        }
-
-        (float bestScore, Move bestMove, List<Move> pv) = Negamax(board, depth, -99999, 99999);
-
-        LastDepth = depth;
-        LastEvaluation = bestScore;
-        LastPV = string.Join(" ", pv.Select(m => m.ToString()));
         return bestMove;
     }
 }

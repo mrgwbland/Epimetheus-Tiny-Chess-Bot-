@@ -86,7 +86,7 @@ namespace ChessChallenge.Application
                 return;
             }
 
-            UCIBot uci = new UCIBot(bot, player);
+            UCIBot uci = new UCIBot(bot);
             uci.Run();
         }
 
