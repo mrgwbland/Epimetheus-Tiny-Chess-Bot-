@@ -61,7 +61,7 @@ public class MyBot : IChessBot
         if (NodesVisited % 1000 == 0 && CurrentTimer.MillisecondsElapsedThisTurn >= MaxTimeForThisMove)// Check every 1000 nodes
             throw new TimeoutException();
     }
-    private float Evaluate(Board board) //Evaluates a single position without depth
+    private float Evaluate(Board board) //Evaluates a single position without depth relative to the side to move
     {
         if (board.IsInCheckmate())
         {
@@ -352,16 +352,6 @@ public class MyBot : IChessBot
         bool ttHit = ttEntry.Key == zobristKey;
         Move bestMoveFromTT = ttHit ? ttEntry.BestMove : Move.NullMove;
 
-        // TT cutoffs
-        if (ttHit && ttEntry.Depth >= depth)
-        {
-            if (ttEntry.NodeType == NodeType.Exact)
-                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
-            if (ttEntry.NodeType == NodeType.LowerBound && ttEntry.Value >= beta)
-                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
-            if (ttEntry.NodeType == NodeType.UpperBound && ttEntry.Value <= alpha)
-                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
-        }
         // Check terminal conditions
         if (board.IsInCheckmate())
         {
@@ -372,11 +362,21 @@ public class MyBot : IChessBot
         {
             return (0, Move.NullMove, new List<Move>());
         }
-
         if (depth == 0)
         {
             float finalEval = QuiescenceSearch(board, alpha, beta);
             return (finalEval, Move.NullMove, new List<Move>());
+        }
+
+        // TT cutoffs
+        if (ttHit && ttEntry.Depth >= depth)
+        {
+            if (ttEntry.NodeType == NodeType.Exact)
+                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
+            if (ttEntry.NodeType == NodeType.LowerBound && ttEntry.Value >= beta)
+                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
+            if (ttEntry.NodeType == NodeType.UpperBound && ttEntry.Value <= alpha)
+                return (ttEntry.Value, ttEntry.BestMove, new List<Move> { ttEntry.BestMove });
         }
 
         // Null move pruning

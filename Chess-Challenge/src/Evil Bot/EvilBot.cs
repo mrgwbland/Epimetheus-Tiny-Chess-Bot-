@@ -119,6 +119,7 @@ namespace ChessChallenge.Example
                     }
                 }
             }
+
             //Position returns eval for the perspective of the side to move
             if (board.IsWhiteToMove)
             {
@@ -522,7 +523,6 @@ namespace ChessChallenge.Example
             Move bestMove = legalMoves[0];
             int depth = 1;
             int maxDepth = 50;
-
             // Iterative deepening with time management
             while (depth <= maxDepth)
             {
@@ -541,7 +541,6 @@ namespace ChessChallenge.Example
                     break;
                 }
             }
-
             return bestMove;
         }
     }
